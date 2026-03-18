@@ -33,7 +33,7 @@ const HallBookingCalendar = () => {
     try {
       const hallsRes = await fetch(`/api/halls?tenantId=${tenantId}`);
       const halls = await hallsRes.json();
-      const currentHall = halls.find((h: any) => h.id === Number(hallId));
+      const currentHall = halls.find((h: any) => h.id === hallId);
       setHall(currentHall);
 
       const calendarRes = await fetch(`/api/hall-calendar?hallId=${hallId}`);
@@ -83,7 +83,7 @@ const HallBookingCalendar = () => {
     const response = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...formData, hallId: Number(hallId) }),
+      body: JSON.stringify({ ...formData, hallId: hallId }),
     });
 
     if (response.ok) {

@@ -1,9 +1,12 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Shield, X, Trash2, Edit2, CheckCircle2, Circle } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Roles = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const [roles, setRoles] = useState([]);
@@ -144,6 +147,9 @@ const Roles = () => {
     return acc;
   }, {});
 
+  
+  const paginatedItems = roles.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -166,7 +172,7 @@ const Roles = () => {
         ) : roles.length === 0 ? (
           <div className="col-span-full py-12 text-center text-slate-500">No custom roles created yet.</div>
         ) : (
-          roles.map((role: any) => (
+          paginatedItems.map((role: any) => (
             <div key={role.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow group relative">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -311,6 +317,13 @@ const Roles = () => {
         message="Are you sure you want to delete this role? Users assigned to this role may lose access to certain features."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={roles.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

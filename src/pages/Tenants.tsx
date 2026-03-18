@@ -1,8 +1,11 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, MoreVertical, MapPin, Phone, Mail, X, Trash2, Edit2, User, CreditCard } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 const Tenants = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [tenants, setTenants] = useState([]);
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -158,6 +161,9 @@ const Tenants = () => {
     }
   };
 
+  
+  const paginatedItems = tenants.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -212,7 +218,7 @@ const Tenants = () => {
                   <td colSpan={8} className="px-6 py-8 text-center text-slate-500">No tenants found.</td>
                 </tr>
               ) : (
-                tenants.map((tenant: any) => (
+                paginatedItems.map((tenant: any) => (
                   <tr key={tenant.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -326,7 +332,7 @@ const Tenants = () => {
           ) : tenants.length === 0 ? (
             <div className="p-8 text-center text-slate-500">No tenants found.</div>
           ) : (
-            tenants.map((tenant: any) => (
+            paginatedItems.map((tenant: any) => (
               <div key={tenant.id} className="p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -686,6 +692,13 @@ const Tenants = () => {
         message="Are you sure you want to delete this tenant? This action cannot be undone and all associated data will be permanently removed."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={tenants.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

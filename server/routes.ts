@@ -42,6 +42,10 @@ import {
   listBookingAddOns,
   getBookingContract,
   upsertBookingContract,
+  listBookingFollowUps,
+  createBookingFollowUp,
+  updateBookingFollowUp,
+  deleteBookingFollowUp,
 } from "./controllers/bookingsController";
 import { listUsers, getUser, createUser, updateUser, deleteUser } from "./controllers/usersController";
 import { getSettings, updateSettings } from "./controllers/settingsController";
@@ -171,6 +175,10 @@ router.delete("/bookings/:id/payments/:paymentId", deleteBookingPayment);
 router.get("/bookings/:id/approvals", listBookingApprovals);
 router.get("/bookings/:id/menu-items", listBookingMenuItems);
 router.get("/bookings/:id/add-ons", listBookingAddOns);
+router.get("/bookings/:id/follow-ups", listBookingFollowUps);
+router.post("/bookings/:id/follow-ups", createBookingFollowUp);
+router.put("/bookings/:id/follow-ups/:followUpId", updateBookingFollowUp);
+router.delete("/bookings/:id/follow-ups/:followUpId", deleteBookingFollowUp);
 router.get("/bookings/:id/contract", getBookingContract);
 router.post("/bookings/:id/contract", upsertBookingContract);
 

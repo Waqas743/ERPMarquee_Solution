@@ -47,9 +47,9 @@ export async function getTenants() {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM Tenants t 
-    LEFT JOIN SubscriptionPlans p ON t.subscriptionPlanId = p.id
-    LEFT JOIN TenantUsers cb ON t.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON t.modifiedBy = mb.id
+    LEFT JOIN SubscriptionPlans p ON t.subscriptionPlanId::text = p.id::text
+    LEFT JOIN TenantUsers cb ON t.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON t.modifiedBy::text = mb.id::text
     WHERE COALESCE(t.isDeleted, FALSE) = FALSE
     ORDER BY t.id DESC
   `);
@@ -69,7 +69,7 @@ export async function createTenant(data: {
   country: string;
   logoUrl: string | null;
   domain: string;
-  subscriptionPlanId: number | null;
+  subscriptionPlanId: string | null;
   subscriptionStartDate: string;
   subscriptionEndDate: string | null;
   maxBranchesAllowed: number;
@@ -166,7 +166,7 @@ export async function updateTenant(id: string, data: {
   country: string;
   logoUrl: string | null;
   domain: string;
-  subscriptionPlanId: number | null;
+  subscriptionPlanId: string | null;
   subscriptionStartDate: string | null;
   subscriptionEndDate: string | null;
   maxBranchesAllowed: number;

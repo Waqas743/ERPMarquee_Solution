@@ -4,7 +4,7 @@ import Swal from 'sweetalert2';
 import { 
   User, Calendar, DollarSign, CreditCard, CheckCircle2, 
   ChevronRight, ChevronLeft, Search, Plus, Users, 
-  Clock, MapPin, Phone, Mail, FileText, Trash2, Utensils, Check
+  Clock, MapPin, Phone, Mail, FileText, Trash2, Utensils, Check, X
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { getCurrentUser, getTenantId } from '../utils/session';
@@ -26,6 +26,7 @@ const AddBooking = () => {
   const [customerSearch, setCustomerSearch] = useState('');
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [isAddOnModalOpen, setIsAddOnModalOpen] = useState(false);
+  const [existingPayments, setExistingPayments] = useState<any[]>([]);
 
   const user = getCurrentUser();
   const tenantId = getTenantId();
@@ -95,12 +96,16 @@ const AddBooking = () => {
               return;
             }
             // Fetch booking menu items and add-ons
-            const [miRes, aoRes] = await Promise.all([
+            const [miRes, aoRes, payRes] = await Promise.all([
               fetch(`/api/bookings/${id}/menu-items`),
-              fetch(`/api/bookings/${id}/add-ons`)
+              fetch(`/api/bookings/${id}/add-ons`),
+              fetch(`/api/bookings/${id}/payments`)
             ]);
             const bMenuItems = await miRes.json();
             const bAddOns = await aoRes.json();
+            const bPayments = await payRes.json();
+
+            setExistingPayments(bPayments || []);
 
             setFormData({
               customerId: booking.customerId,
@@ -286,8 +291,9 @@ const AddBooking = () => {
   ]);
 
   const addPayment = () => {
+    const existingTotal = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const totalPlanned = formData.paymentPlan.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const remaining = formData.grandTotal - totalPlanned;
+    const remaining = formData.grandTotal - existingTotal - totalPlanned;
     
     if (remaining <= 0) {
       Swal.fire({
@@ -302,7 +308,7 @@ const AddBooking = () => {
       ...prev,
       paymentPlan: [
         ...prev.paymentPlan,
-        { type: prev.paymentPlan.length === 0 ? 'Advance' : 'Installment', amount: remaining, dueDate: format(new Date(), 'yyyy-MM-dd') }
+        { type: (existingPayments.length === 0 && prev.paymentPlan.length === 0) ? 'Advance' : 'Installment', amount: remaining, dueDate: format(new Date(), 'yyyy-MM-dd') }
       ]
     }));
   };
@@ -319,8 +325,9 @@ const AddBooking = () => {
     newPlan[index] = { ...newPlan[index], [field]: value };
     
     if (field === 'amount') {
+      const existingTotal = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       const totalPlanned = newPlan.reduce((sum, p, i) => i === index ? sum + Number(value) : sum + (Number(p.amount) || 0), 0);
-      if (totalPlanned > formData.grandTotal) {
+      if (existingTotal + totalPlanned > formData.grandTotal) {
         Swal.fire({
           icon: 'error',
           title: 'Invalid Amount',
@@ -450,7 +457,7 @@ const AddBooking = () => {
           discount: formData.discount,
           tax: formData.tax,
           grandTotal: formData.grandTotal,
-          payments: id ? undefined : formData.paymentPlan, // Don't update payments via this form if editing
+          payments: formData.paymentPlan,
           menuItems: formData.menuItems,
           selectedAddOns: formData.selectedAddOns
         })
@@ -465,7 +472,7 @@ const AddBooking = () => {
             timer: 2000,
             showConfirmButton: false
           });
-          navigate(`/bookings/${id}`);
+          navigate(`/bookings/${id}?autoContract=true`);
         } else {
           const bookingData = await bookingRes.json();
           Swal.fire({
@@ -475,7 +482,7 @@ const AddBooking = () => {
             timer: 2000,
             showConfirmButton: false
           });
-          navigate(`/bookings/${bookingData.id}`);
+          navigate(`/bookings/${bookingData.id}?autoContract=true`);
         }
       } else {
         const errorData = await bookingRes.json();
@@ -496,8 +503,8 @@ const AddBooking = () => {
     { id: 1, title: 'Customer Info', icon: <User size={20} /> },
     { id: 2, title: 'Event Info', icon: <Calendar size={20} /> },
     { id: 3, title: 'Pricing', icon: <DollarSign size={20} /> },
-    ...(!id ? [{ id: 4, title: 'Payment Plan', icon: <CreditCard size={20} /> }] : []),
-    { id: id ? 4 : 5, title: 'Confirmation', icon: <CheckCircle2 size={20} /> },
+    { id: 4, title: 'Payment Plan', icon: <CreditCard size={20} /> },
+    { id: 5, title: 'Confirmation', icon: <CheckCircle2 size={20} /> },
   ];
 
   return (
@@ -699,9 +706,9 @@ const AddBooking = () => {
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                 >
                   <option value="">Select Event Type</option>
-                  <option value="Wedding">Wedding</option>
-                  <option value="Valima">Valima</option>
                   <option value="Mehndi">Mehndi</option>
+                  <option value="Barat">Barat</option>
+                  <option value="Walima">Walima</option>
                   <option value="Birthday">Birthday</option>
                   <option value="Corporate">Corporate</option>
                   <option value="Other">Other</option>
@@ -1076,19 +1083,54 @@ const AddBooking = () => {
                 <span className="text-lg font-black text-indigo-600">Rs. {formData.grandTotal?.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center mt-2">
-                <span className="text-sm font-bold text-slate-600">Total Planned:</span>
+                <span className="text-sm font-bold text-slate-600">Total Planned (New):</span>
                 <span className="text-lg font-black text-slate-900">Rs. {formData.paymentPlan.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)?.toLocaleString()}</span>
               </div>
+              {existingPayments.length > 0 && (
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-sm font-bold text-slate-600">Total Existing:</span>
+                  <span className="text-lg font-black text-slate-900">Rs. {existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)?.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200">
                 <span className="text-sm font-bold text-slate-600">Remaining:</span>
-                <span className={`text-lg font-black ${formData.grandTotal - formData.paymentPlan.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  Rs. {(formData.grandTotal - formData.paymentPlan.reduce((sum, p) => sum + (Number(p.amount) || 0), 0))?.toLocaleString()}
+                <span className={`text-lg font-black ${formData.grandTotal - existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) - formData.paymentPlan.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  Rs. {(formData.grandTotal - existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) - formData.paymentPlan.reduce((sum, p) => sum + (Number(p.amount) || 0), 0))?.toLocaleString()}
                 </span>
               </div>
             </div>
 
             <div className="space-y-4">
-              {formData.paymentPlan.length === 0 ? (
+              {existingPayments.length > 0 && (
+                <div className="mb-6 space-y-4">
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Existing Payments</h3>
+                  <div className="grid grid-cols-1 gap-4 opacity-75">
+                    {existingPayments.map((p: any, idx: number) => (
+                      <div key={`exist-${idx}`} className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold">
+                            ✓
+                          </div>
+                          <span className="font-bold text-slate-900">{p.type}</span>
+                          <span className="ml-auto px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">{p.status}</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</label>
+                            <p className="font-bold text-slate-900">Rs. {Number(p.amount).toLocaleString()}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Due Date</label>
+                            <p className="font-bold text-slate-900">{p.dueDate ? format(new Date(p.dueDate), 'MMM dd, yyyy') : 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {formData.paymentPlan.length === 0 && existingPayments.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
                   <CreditCard size={48} className="mx-auto mb-4 text-slate-300" />
                   <p className="text-slate-500 font-medium">No payments added yet. Click "Add Payment" to start.</p>
@@ -1100,7 +1142,7 @@ const AddBooking = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
-                            {idx + 1}
+                            {existingPayments.length + idx + 1}
                           </div>
                           <input 
                             type="text"
@@ -1149,7 +1191,7 @@ const AddBooking = () => {
           </div>
         )}
 
-        {step === (id ? 4 : 5) && (
+        {step === 5 && (
           <div className="p-5 sm:p-8 space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1280,7 +1322,7 @@ const AddBooking = () => {
           Back
         </button>
         
-        {step === (id ? 4 : 5) ? (
+        {step === 5 ? (
           <button 
             onClick={handleSubmit}
             disabled={loading}
@@ -1367,12 +1409,5 @@ const AddBooking = () => {
     </div>
   );
 };
-
-const X = ({ size }: { size: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18"></line>
-    <line x1="6" y1="6" x2="18" y2="18"></line>
-  </svg>
-);
 
 export default AddBooking;

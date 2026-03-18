@@ -50,7 +50,7 @@ export async function initDatabase() {
 
   await query(`
     CREATE TABLE IF NOT EXISTS SubscriptionPlans (
-      id SERIAL PRIMARY KEY,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL,
       priceMonthly DOUBLE PRECISION,
       priceYearly DOUBLE PRECISION,
@@ -62,7 +62,7 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS Tenants (
-      id SERIAL PRIMARY KEY,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL,
       type TEXT CHECK(type IN ('Hall', 'Catering', 'Both')),
       registrationNo TEXT,
@@ -75,7 +75,7 @@ export async function initDatabase() {
       country TEXT,
       logoUrl TEXT,
       domain TEXT,
-      subscriptionPlanId INTEGER,
+      subscriptionPlanId UUID,
       subscriptionStartDate TEXT,
       subscriptionEndDate TEXT,
       maxBranchesAllowed INTEGER,
@@ -91,20 +91,20 @@ export async function initDatabase() {
 
   await query(`
     CREATE TABLE IF NOT EXISTS Branches (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
       name TEXT NOT NULL,
       address TEXT,
       city TEXT,
       phone TEXT,
       email TEXT,
-      managerId INTEGER,
+      managerId UUID,
       isActive BOOLEAN DEFAULT TRUE,
       FOREIGN KEY (tenantId) REFERENCES Tenants(id)
     );
 
     CREATE TABLE IF NOT EXISTS SystemSettings (
-      tenantId INTEGER,
+      tenantId UUID,
       key TEXT,
       value TEXT,
       PRIMARY KEY (tenantId, key),
@@ -112,31 +112,31 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS SuperAdmins (
-      id SERIAL PRIMARY KEY,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       fullName TEXT
     );
 
     CREATE TABLE IF NOT EXISTS Roles (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       FOREIGN KEY (tenantId) REFERENCES Tenants(id)
     );
 
     CREATE TABLE IF NOT EXISTS RolePermissions (
-      id SERIAL PRIMARY KEY,
-      roleId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      roleId UUID NOT NULL,
       permissionKey TEXT NOT NULL,
       FOREIGN KEY (roleId) REFERENCES Roles(id)
     );
 
     CREATE TABLE IF NOT EXISTS TenantUsers (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
-      branchId INTEGER,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
+      branchId UUID,
       username TEXT,
       fullName TEXT,
       email TEXT NOT NULL,
@@ -147,7 +147,7 @@ export async function initDatabase() {
       country TEXT,
       emergencyContactNo TEXT,
       role TEXT DEFAULT 'admin',
-      roleId INTEGER,
+      roleId UUID,
       isActive BOOLEAN DEFAULT TRUE,
       FOREIGN KEY (tenantId) REFERENCES Tenants(id),
       FOREIGN KEY (branchId) REFERENCES Branches(id),
@@ -155,10 +155,10 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS Halls (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
-      branchId INTEGER NOT NULL,
-      hallManagerId INTEGER,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
+      branchId UUID NOT NULL,
+      hallManagerId UUID,
       hallName TEXT NOT NULL,
       capacity INTEGER,
       isDecorationAllowedExternally BOOLEAN DEFAULT TRUE,
@@ -168,9 +168,9 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS HallBookingCalendar (
-      id SERIAL PRIMARY KEY,
-      hallId INTEGER NOT NULL,
-      bookingId INTEGER,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      hallId UUID NOT NULL,
+      bookingId UUID,
       eventDate TEXT NOT NULL,
       startTime TEXT,
       endTime TEXT,
@@ -181,8 +181,8 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS Customers (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
       name TEXT NOT NULL,
       cnic TEXT,
       phone TEXT NOT NULL,
@@ -193,11 +193,11 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS Bookings (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
-      branchId INTEGER NOT NULL,
-      hallId INTEGER NOT NULL,
-      customerId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
+      branchId UUID NOT NULL,
+      hallId UUID NOT NULL,
+      customerId UUID NOT NULL,
       bookingNumber TEXT UNIQUE NOT NULL,
       eventType TEXT NOT NULL,
       eventDate TEXT NOT NULL,
@@ -210,7 +210,7 @@ export async function initDatabase() {
       discount DOUBLE PRECISION DEFAULT 0,
       tax DOUBLE PRECISION DEFAULT 0,
       grandTotal DOUBLE PRECISION DEFAULT 0,
-      packageId INTEGER,
+      packageId UUID,
       djCharges DOUBLE PRECISION DEFAULT 0,
       fireworkPrice DOUBLE PRECISION DEFAULT 0,
       fireworkQuantity INTEGER DEFAULT 0,
@@ -224,8 +224,8 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS BookingPayments (
-      id SERIAL PRIMARY KEY,
-      bookingId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      bookingId UUID NOT NULL,
       amount DOUBLE PRECISION NOT NULL,
       dueDate TEXT,
       paidDate TEXT,
@@ -236,9 +236,9 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS BookingApprovals (
-      id SERIAL PRIMARY KEY,
-      bookingId INTEGER NOT NULL,
-      userId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      bookingId UUID NOT NULL,
+      userId UUID NOT NULL,
       status TEXT NOT NULL,
       comments TEXT,
       level INTEGER DEFAULT 1,
@@ -248,8 +248,8 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS Contracts (
-      id SERIAL PRIMARY KEY,
-      bookingId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      bookingId UUID NOT NULL,
       content TEXT,
       signedCopyPath TEXT,
       status TEXT DEFAULT 'Draft',
@@ -258,8 +258,8 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS MenuCategories (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       isActive BOOLEAN DEFAULT TRUE,
@@ -267,9 +267,9 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS MenuItems (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
-      categoryId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
+      categoryId UUID NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       isActive BOOLEAN DEFAULT TRUE,
@@ -280,8 +280,8 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS AddOns (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       price DOUBLE PRECISION DEFAULT 0,
@@ -291,8 +291,8 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS EventPackages (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       basePrice DOUBLE PRECISION DEFAULT 0,
@@ -303,9 +303,9 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS PackageMenuMapping (
-      id SERIAL PRIMARY KEY,
-      packageId INTEGER NOT NULL,
-      menuItemId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      packageId UUID NOT NULL,
+      menuItemId UUID NOT NULL,
       quantity DOUBLE PRECISION DEFAULT 1,
       notes TEXT,
       FOREIGN KEY (packageId) REFERENCES EventPackages(id),
@@ -313,18 +313,18 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS PackageAddons (
-      id SERIAL PRIMARY KEY,
-      packageId INTEGER NOT NULL,
-      addOnId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      packageId UUID NOT NULL,
+      addOnId UUID NOT NULL,
       isActive BOOLEAN DEFAULT TRUE,
       FOREIGN KEY (packageId) REFERENCES EventPackages(id),
       FOREIGN KEY (addOnId) REFERENCES AddOns(id)
     );
 
     CREATE TABLE IF NOT EXISTS BookingMenuItems (
-      id SERIAL PRIMARY KEY,
-      bookingId INTEGER NOT NULL,
-      menuItemId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      bookingId UUID NOT NULL,
+      menuItemId UUID NOT NULL,
       quantity DOUBLE PRECISION DEFAULT 1,
       unitPrice DOUBLE PRECISION DEFAULT 0,
       notes TEXT,
@@ -333,23 +333,42 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS BookingAddOns (
-      id SERIAL PRIMARY KEY,
-      bookingId INTEGER NOT NULL,
-      addOnId INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      bookingId UUID NOT NULL,
+      addOnId UUID NOT NULL,
       price DOUBLE PRECISION DEFAULT 0,
       FOREIGN KEY (bookingId) REFERENCES Bookings(id),
       FOREIGN KEY (addOnId) REFERENCES AddOns(id)
     );
 
+    CREATE TABLE IF NOT EXISTS BookingFollowUps (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      bookingId UUID NOT NULL,
+      userId UUID NOT NULL,
+      type TEXT DEFAULT 'Note',
+      status TEXT DEFAULT 'Pending',
+      followUpDate TEXT,
+      notes TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      createdBy UUID,
+      modifiedAt TIMESTAMP,
+      modifiedBy UUID,
+      isDeleted BOOLEAN DEFAULT FALSE,
+      deletedAt TIMESTAMP,
+      deletedBy UUID,
+      FOREIGN KEY (bookingId) REFERENCES Bookings(id),
+      FOREIGN KEY (userId) REFERENCES TenantUsers(id)
+    );
+
     CREATE TABLE IF NOT EXISTS Tasks (
-      id SERIAL PRIMARY KEY,
-      tenantId INTEGER NOT NULL,
-      branchId INTEGER,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenantId UUID NOT NULL,
+      branchId UUID,
       title TEXT NOT NULL,
       description TEXT,
       status TEXT DEFAULT 'Pending',
       priority TEXT DEFAULT 'Medium',
-      assignedTo INTEGER,
+      assignedTo UUID,
       dueDate TEXT,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (tenantId) REFERENCES Tenants(id),
@@ -383,205 +402,226 @@ export async function initDatabase() {
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS country TEXT");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS logoUrl TEXT");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS domain TEXT");
-  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS subscriptionPlanId INTEGER");
+  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS subscriptionPlanId UUID");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS subscriptionStartDate TEXT");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS subscriptionEndDate TEXT");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS password TEXT");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS maxBranchesAllowed INTEGER DEFAULT 0");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS maxUsersAllowed INTEGER DEFAULT 0");
 
-  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS branchId INTEGER");
+  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS branchId UUID");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS username TEXT");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS address TEXT");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS contactNo TEXT");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS city TEXT");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS country TEXT");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS emergencyContactNo TEXT");
-  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS roleId INTEGER");
+  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS roleId UUID");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS username TEXT");
-  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS managerId INTEGER");
+  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS managerId UUID");
   await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS isChefSpecial BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS costPrice DOUBLE PRECISION DEFAULT 0");
-  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS hallManagerId INTEGER");
+  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS hallManagerId UUID");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS djCharges DOUBLE PRECISION DEFAULT 0");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS fireworkPrice DOUBLE PRECISION DEFAULT 0");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS fireworkQuantity INTEGER DEFAULT 0");
 
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Tenants ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Branches ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Halls ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE HallBookingCalendar ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
-  await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Customers ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
-  await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
-  await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE BookingPayments ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
-  await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE BookingApprovals ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
-  await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Contracts ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE MenuCategories ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE MenuItems ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
-  await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE AddOns ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
-  await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE EventPackages ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE PackageMenuMapping ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE PackageAddons ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE BookingMenuItems ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE BookingAddOns ADD COLUMN IF NOT EXISTS deletedBy UUID");
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS BookingFollowUps (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      bookingId UUID NOT NULL,
+      userId UUID NOT NULL,
+      type TEXT DEFAULT 'Note',
+      status TEXT DEFAULT 'Pending',
+      followUpDate TEXT,
+      notes TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      createdBy UUID,
+      modifiedAt TIMESTAMP,
+      modifiedBy UUID,
+      isDeleted BOOLEAN DEFAULT FALSE,
+      deletedAt TIMESTAMP,
+      deletedBy UUID,
+      FOREIGN KEY (bookingId) REFERENCES Bookings(id),
+      FOREIGN KEY (userId) REFERENCES TenantUsers(id)
+    )
+  `);
 
   await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS modifiedBy UUID");
+  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdBy INTEGER");
+  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdBy UUID");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS modifiedBy INTEGER");
+  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS modifiedBy UUID");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS deletedBy INTEGER");
+  await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   const planCount = await query<{ count: string }>("SELECT COUNT(*) as count FROM SubscriptionPlans");
   if (Number(planCount.rows[0]?.count || 0) === 0) {

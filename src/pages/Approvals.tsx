@@ -1,3 +1,4 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -8,6 +9,8 @@ import { format } from 'date-fns';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Approvals = () => {
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 10;
   const navigate = useNavigate();
   const [allBookings, setAllBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,8 +40,10 @@ const Approvals = () => {
     { id: 'Pending', label: 'Pending', icon: <Clock size={18} />, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'Approved', label: 'Approved', icon: <CheckCircle2 size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { id: 'Rejected', label: 'Rejected', icon: <XCircle size={18} />, color: 'text-red-600', bg: 'bg-red-50' },
-    { id: 'Revision', label: 'Revision', icon: <AlertCircle size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
   ];
+
+  
+  const paginatedItems = bookings.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-8">
@@ -82,7 +87,7 @@ const Approvals = () => {
             <p className="text-slate-500 font-medium">No {activeTab.toLowerCase()} requests found.</p>
           </div>
         ) : (
-          bookings.map((booking: any) => (
+          paginatedItems.map((booking: any) => (
             <div 
               key={booking.id}
               onClick={() => navigate(`/bookings/${booking.id}`)}
@@ -140,6 +145,13 @@ const Approvals = () => {
           ))
         )}
       </div>
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={bookings.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
+      />
     </div>
   );
 };

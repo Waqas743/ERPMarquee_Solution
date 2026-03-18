@@ -17,8 +17,8 @@ export async function listCustomers(tenantId: string, search?: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM Customers c
-    LEFT JOIN TenantUsers cb ON c.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON c.modifiedBy = mb.id
+    LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
     WHERE c.tenantId = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [tenantId];
@@ -47,8 +47,8 @@ export async function getCustomerById(id: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM Customers c
-    LEFT JOIN TenantUsers cb ON c.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON c.modifiedBy = mb.id
+    LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
     WHERE c.id = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
   `, [id]);
   const customer = customerResult.rows[0] as any;
@@ -70,8 +70,8 @@ export async function getCustomerById(id: string) {
         h.hallName as "hallName",
         br.name as "branchName"
       FROM Bookings b
-      JOIN Halls h ON b.hallId = h.id
-      JOIN Branches br ON b.branchId = br.id
+      JOIN Halls h ON b.hallId::text = h.id::text
+      JOIN Branches br ON b.branchId::text = br.id::text
       WHERE b.customerId = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
       ORDER BY b.eventDate DESC
     `, [id])).rows;

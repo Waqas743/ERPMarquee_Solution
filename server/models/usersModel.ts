@@ -42,16 +42,16 @@ export async function listUsers(data: {
       tu.createdBy as "createdBy",
       tu.modifiedBy as "modifiedBy",
       b.name as "branchName",
-      r.name as "roleName",
-      cb.fullName as "createdByName",
-      mb.fullName as "modifiedByName"
-    FROM TenantUsers tu
-    LEFT JOIN Branches b ON tu.branchId = b.id
-    LEFT JOIN Roles r ON tu.roleId = r.id
-    LEFT JOIN TenantUsers cb ON tu.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON tu.modifiedBy = mb.id
-    WHERE tu.tenantId = $1 AND COALESCE(tu.isDeleted, FALSE) = FALSE
-  `;
+        r.name as "roleName",
+        cb.fullName as "createdByName",
+        mb.fullName as "modifiedByName"
+      FROM TenantUsers tu
+      LEFT JOIN Branches b ON tu.branchId::text = b.id::text
+      LEFT JOIN Roles r ON tu.roleId::text = r.id::text
+      LEFT JOIN TenantUsers cb ON tu.createdBy::text = cb.id::text
+      LEFT JOIN TenantUsers mb ON tu.modifiedBy::text = mb.id::text
+      WHERE tu.tenantId = $1 AND COALESCE(tu.isDeleted, FALSE) = FALSE
+    `;
   const params: any[] = [data.tenantId];
   if (data.search) {
     queryText += ` AND (tu.fullName ILIKE $${params.length + 1} OR tu.email ILIKE $${params.length + 2} OR tu.username ILIKE $${params.length + 3})`;
@@ -95,16 +95,16 @@ export async function getUserById(id: string) {
         tu.createdBy as "createdBy",
         tu.modifiedBy as "modifiedBy",
         b.name as "branchName",
-        r.name as "roleName",
-        cb.fullName as "createdByName",
-        mb.fullName as "modifiedByName"
-      FROM TenantUsers tu
-      LEFT JOIN Branches b ON tu.branchId = b.id
-      LEFT JOIN Roles r ON tu.roleId = r.id
-      LEFT JOIN TenantUsers cb ON tu.createdBy = cb.id
-      LEFT JOIN TenantUsers mb ON tu.modifiedBy = mb.id
-      WHERE tu.id = $1 AND COALESCE(tu.isDeleted, FALSE) = FALSE
-    `,
+          r.name as "roleName",
+          cb.fullName as "createdByName",
+          mb.fullName as "modifiedByName"
+        FROM TenantUsers tu
+        LEFT JOIN Branches b ON tu.branchId::text = b.id::text
+        LEFT JOIN Roles r ON tu.roleId::text = r.id::text
+        LEFT JOIN TenantUsers cb ON tu.createdBy::text = cb.id::text
+        LEFT JOIN TenantUsers mb ON tu.modifiedBy::text = mb.id::text
+        WHERE tu.id = $1 AND COALESCE(tu.isDeleted, FALSE) = FALSE
+      `,
     [id]
   );
   return result.rows[0] || null;

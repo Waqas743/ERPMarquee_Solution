@@ -5,12 +5,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import apiRoutes from "./server/routes";
 import { initDatabase } from "./server/db";
+import { startCronJobs } from "./server/services/cron";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
   await initDatabase();
+  startCronJobs();
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 

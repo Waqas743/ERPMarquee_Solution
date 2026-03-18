@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   Users, CreditCard, Building, TrendingUp, 
   Calendar as CalendarIcon, DollarSign, CheckCircle2, XCircle,
-  Clock, FileText, ChevronLeft, ChevronRight, ArrowRight
+  Clock, FileText, ChevronLeft, ChevronRight, ArrowRight, Download
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -248,7 +248,7 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
         {isSuperAdmin ? (
           <>
             <StatCard icon={Users} label="Total Tenants" value={superAdminStats.tenants} color="bg-indigo-600" />
@@ -259,50 +259,51 @@ const Dashboard = () => {
         ) : (
           <>
             <StatCard icon={DollarSign} label="Total Sales" value={dashboardData.stats?.totalSales} prefix="Rs. " color="bg-emerald-600" />
+            <StatCard icon={CreditCard} label="Pending Payments" value={dashboardData.stats?.pendingPayment || 0} prefix="Rs. " color="bg-rose-600" />
             <StatCard icon={CalendarIcon} label="Total Bookings" value={dashboardData.stats?.totalBookings} color="bg-indigo-600" />
+            <StatCard icon={Clock} label="Pending Bookings" value={dashboardData.stats?.pendingBookings} color="bg-amber-500" />
             <StatCard icon={CheckCircle2} label="Confirmed Bookings" value={dashboardData.stats?.confirmedBookings} color="bg-blue-600" />
-            <StatCard icon={XCircle} label="Cancelled Bookings" value={dashboardData.stats?.cancelledBookings} color="bg-red-600" />
+            
+            <StatCard icon={CheckCircle2} label="Completed Events" value={dashboardData.stats?.completedEvents} color="bg-emerald-500" />
+            <StatCard icon={XCircle} label="Cancelled / Rejected" value={dashboardData.stats?.cancelledBookings} color="bg-red-600" />
             <StatCard icon={FileText} label="Total Invoices" value={dashboardData.stats?.totalInvoices} color="bg-slate-700" />
             <StatCard icon={Clock} label="Pending Invoices" value={dashboardData.stats?.pendingInvoices} color="bg-amber-500" />
             <StatCard icon={CheckCircle2} label="Paid Invoices" value={dashboardData.stats?.paidInvoices} color="bg-emerald-500" />
-            <StatCard icon={TrendingUp} label="Growth" value="12%" color="bg-indigo-500" />
           </>
         )}
       </div>
 
       {!isSuperAdmin && (
         <>
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            {/* Calendar */}
-            <div className="xl:col-span-2">
-              <Calendar bookings={dashboardData.calendar} />
+          <div className="space-y-8">
+            {/* Charts */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
+              <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Sales (Rs.)</h3>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardData.charts?.monthlySales}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      type="category"
+                    />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                    <Tooltip 
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            {/* Charts */}
-            <div className="space-y-8">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-full">
-                <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Sales (Rs.)</h3>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dashboardData.charts?.monthlySales}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis 
-                        dataKey="month" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#94a3b8', fontSize: 12 }}
-                        tickFormatter={(val) => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(val)-1]}
-                      />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                      <Tooltip 
-                        cursor={{ fill: '#f8fafc' }}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      />
-                      <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+            {/* Calendar */}
+            <div className="w-full">
+              <Calendar bookings={dashboardData.calendar} />
             </div>
           </div>
 

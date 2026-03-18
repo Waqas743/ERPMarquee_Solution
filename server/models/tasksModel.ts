@@ -21,10 +21,10 @@ export async function listTasks(data: { tenantId: string; branchId?: string; ass
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM Tasks t
-    LEFT JOIN TenantUsers tu ON t.assignedTo = tu.id
-    LEFT JOIN Branches b ON t.branchId = b.id
-    LEFT JOIN TenantUsers cb ON t.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON t.modifiedBy = mb.id
+    LEFT JOIN TenantUsers tu ON t.assignedTo::text = tu.id::text
+    LEFT JOIN Branches b ON t.branchId::text = b.id::text
+    LEFT JOIN TenantUsers cb ON t.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON t.modifiedBy::text = mb.id::text
     WHERE t.tenantId = $1 AND COALESCE(t.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [data.tenantId];

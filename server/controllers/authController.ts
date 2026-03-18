@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { login as loginModel } from "../models/authModel";
 
+
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 export async function login(req: Request, res: Response) {

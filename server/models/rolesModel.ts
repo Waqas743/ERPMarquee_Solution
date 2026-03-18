@@ -2,12 +2,12 @@ import { query, withTransaction } from "../db";
 
 export async function getRolesWithPermissions(tenantId: string) {
   const roles = (await query(`
-    SELECT r.*, cb.fullName as "createdByName", mb.fullName as "modifiedByName" 
-    FROM Roles r
-    LEFT JOIN TenantUsers cb ON r.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON r.modifiedBy = mb.id
-    WHERE r.tenantId = $1 AND COALESCE(r.isDeleted, FALSE) = FALSE
-  `, [tenantId])).rows as any[];
+      SELECT r.*, cb.fullName as "createdByName", mb.fullName as "modifiedByName"
+      FROM Roles r
+      LEFT JOIN TenantUsers cb ON r.createdBy::text = cb.id::text
+      LEFT JOIN TenantUsers mb ON r.modifiedBy::text = mb.id::text
+      WHERE r.tenantId = $1 AND COALESCE(r.isDeleted, FALSE) = FALSE
+    `, [tenantId])).rows as any[];
   const results = [];
   for (const role of roles) {
     const permissions = (

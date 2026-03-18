@@ -1,3 +1,4 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Building, MapPin, Users, DollarSign, Clock, ShieldCheck, X, Trash2, Edit2, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -5,6 +6,8 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Halls = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const navigate = useNavigate();
@@ -106,10 +109,17 @@ const Halls = () => {
     const url = editingHall ? `/api/halls/${editingHall.id}` : '/api/halls';
     const method = editingHall ? 'PUT' : 'POST';
 
+    const payload = {
+      ...formData,
+      tenantId,
+      createdBy: !editingHall ? user?.id : undefined,
+      modifiedBy: editingHall ? user?.id : undefined
+    };
+
     const response = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...formData, tenantId }),
+      body: JSON.stringify(payload),
     });
 
     if (response.ok) {
@@ -130,6 +140,9 @@ const Halls = () => {
       }
     }
   };
+
+  
+  const paginatedItems = halls.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-8">
@@ -153,7 +166,7 @@ const Halls = () => {
         ) : halls.length === 0 ? (
           <div className="col-span-full py-12 text-center text-slate-500">No halls found. Add your first venue to get started.</div>
         ) : (
-          halls.map((hall: any) => (
+          paginatedItems.map((hall: any) => (
             <div key={hall.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
               <div className="p-6 space-y-4">
                 <div className="flex items-start justify-between">
@@ -340,6 +353,13 @@ const Halls = () => {
         message="Are you sure you want to delete this hall? All associated sections, packages, and calendar entries will be lost."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={halls.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

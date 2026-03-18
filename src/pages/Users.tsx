@@ -1,9 +1,12 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, User, Mail, Shield, X, Trash2, Edit2, Building2, Key, Phone, MapPin, Globe, PhoneCall } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Users = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const [users, setUsers] = useState([]);
@@ -71,7 +74,10 @@ const Users = () => {
     const timer = setTimeout(() => {
       fetchUsers();
     }, 300);
-    return () => clearTimeout(timer);
+  
+
+  
+  return () => clearTimeout(timer);
   }, [searchQuery, filterRole, filterBranch, filterStatus]);
 
   useEffect(() => {
@@ -198,7 +204,7 @@ const Users = () => {
         alert('An error occurred while deleting the user');
       }
     }
-  };
+  };  const paginatedItems = users.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-8">
@@ -284,7 +290,7 @@ const Users = () => {
                   <td colSpan={4} className="px-6 py-8 text-center text-slate-500">No users found.</td>
                 </tr>
               ) : (
-                users.map((u: any) => (
+                paginatedItems.map((u: any) => (
                   <tr key={u.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -415,7 +421,7 @@ const Users = () => {
             <p className="text-slate-500 font-medium">No users found.</p>
           </div>
         ) : (
-          users.map((u: any) => (
+          paginatedItems.map((u: any) => (
             <div key={u.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
@@ -684,6 +690,13 @@ const Users = () => {
         message="Are you sure you want to delete this user? They will no longer be able to access the system."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={users.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

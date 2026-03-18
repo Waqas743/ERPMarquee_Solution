@@ -16,8 +16,8 @@ export async function listAddOns(tenantId: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM AddOns a
-    LEFT JOIN TenantUsers cb ON a.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON a.modifiedBy = mb.id
+    LEFT JOIN TenantUsers cb ON a.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON a.modifiedBy::text = mb.id::text
     WHERE a.tenantId = $1 AND COALESCE(a.isDeleted, FALSE) = FALSE`, 
     [tenantId]
   );
@@ -40,8 +40,8 @@ export async function getAddOn(id: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM AddOns a
-    LEFT JOIN TenantUsers cb ON a.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON a.modifiedBy = mb.id
+    LEFT JOIN TenantUsers cb ON a.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON a.modifiedBy::text = mb.id::text
     WHERE a.id = $1 AND COALESCE(a.isDeleted, FALSE) = FALSE`, 
     [id]
   );

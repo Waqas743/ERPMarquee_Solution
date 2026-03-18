@@ -1,3 +1,4 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, XCircle, 
@@ -8,6 +9,8 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Packages = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const [packages, setPackages] = useState<any[]>([]);
@@ -187,6 +190,11 @@ const Packages = () => {
     });
   };
 
+
+                              
+                              
+  const paginatedItems = packages.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -209,7 +217,7 @@ const Packages = () => {
         ) : packages.length === 0 ? (
           <div className="col-span-full py-12 text-center text-slate-500">No packages created yet.</div>
         ) : (
-          packages.map((pkg: any) => (
+          paginatedItems.map((pkg: any) => (
             <div key={pkg.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col group overflow-hidden">
               <div className="p-6 border-b border-slate-100 relative">
                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -341,9 +349,7 @@ const Packages = () => {
                             {categoryItems.map(item => {
                               const selectedItem = formData.menuItems.find(mi => 
                                 String(mi.menuItemId || mi.menuitemid) === String(item.id)
-                              );
-                              
-                              return (
+                              );  return (
                                 <div 
                                   key={item.id} 
                                   className={`p-4 rounded-xl border transition-all ${
@@ -454,6 +460,13 @@ const Packages = () => {
         message="Are you sure you want to delete this event package? This will not affect existing bookings."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={packages.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

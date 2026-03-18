@@ -19,10 +19,10 @@ export async function getHalls(tenantId: string, branchId?: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM Halls h 
-    JOIN Branches b ON h.branchId = b.id 
-    LEFT JOIN TenantUsers tu ON h.hallManagerId = tu.id
-    LEFT JOIN TenantUsers cb ON h.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON h.modifiedBy = mb.id
+    JOIN Branches b ON h.branchId::text = b.id::text 
+    LEFT JOIN TenantUsers tu ON h.hallManagerId::text = tu.id::text
+    LEFT JOIN TenantUsers cb ON h.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON h.modifiedBy::text = mb.id::text
     WHERE h.tenantId = $1 AND COALESCE(h.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [tenantId];
@@ -38,10 +38,10 @@ export async function getHallById(id: string) {
     `
     SELECT h.*, b.name as "branchName", tu.fullName as "managerName", cb.fullName as "createdByName", mb.fullName as "modifiedByName"
     FROM Halls h 
-    JOIN Branches b ON h.branchId = b.id 
-    LEFT JOIN TenantUsers tu ON h.hallManagerId = tu.id
-    LEFT JOIN TenantUsers cb ON h.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON h.modifiedBy = mb.id
+    JOIN Branches b ON h.branchId::text = b.id::text 
+    LEFT JOIN TenantUsers tu ON h.hallManagerId::text = tu.id::text
+    LEFT JOIN TenantUsers cb ON h.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON h.modifiedBy::text = mb.id::text
     WHERE h.id = $1 AND COALESCE(h.isDeleted, FALSE) = FALSE
   `,
     [id]

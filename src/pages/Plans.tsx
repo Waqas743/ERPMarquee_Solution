@@ -1,8 +1,11 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Check, ShieldCheck, Plus, X, Edit2, Trash2 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 const Plans = () => {
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [plans, setPlans] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any>(null);
@@ -94,6 +97,9 @@ const Plans = () => {
     }
   };
 
+  
+  const paginatedItems = plans.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -111,7 +117,7 @@ const Plans = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-        {plans.map((plan: any) => (
+        {paginatedItems.map((plan: any) => (
           <div key={plan.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col group">
             <div className="p-8 border-b border-slate-100 relative">
               <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -282,6 +288,13 @@ const Plans = () => {
         message="Are you sure you want to delete this subscription plan? This action cannot be undone and may affect tenants currently assigned to this plan."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={plans.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

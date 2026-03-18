@@ -37,7 +37,7 @@ export async function login(username: string, password: string) {
     `
       SELECT tu.*, t.name as tenantName, t.isSuspended, t.isActive as tenantActive
       FROM TenantUsers tu
-      JOIN Tenants t ON tu.tenantId = t.id
+      JOIN Tenants t ON tu.tenantId::text = t.id::text
       WHERE (tu.email = $1 OR tu.username = $2) AND tu.isActive = TRUE
     `,
     [username, username]

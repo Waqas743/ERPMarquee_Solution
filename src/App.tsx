@@ -24,8 +24,23 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const user = localStorage.getItem('adminUser');
-    setIsAuthenticated(!!user);
+    const userStr = localStorage.getItem('adminUser');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        // If tenantId or id exists but is not a UUID (length < 30 is a safe check since UUIDs are 36 chars)
+        if ((user.tenantId && String(user.tenantId).length < 20) || (user.id && String(user.id).length < 20)) {
+          localStorage.removeItem('adminUser');
+          setIsAuthenticated(false);
+          return;
+        }
+      } catch (e) {
+        localStorage.removeItem('adminUser');
+        setIsAuthenticated(false);
+        return;
+      }
+    }
+    setIsAuthenticated(!!userStr);
   }, []);
 
   if (isAuthenticated === null) return null;

@@ -1,9 +1,12 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, MapPin, Phone, Mail, X, Trash2, Edit2, User, Users as UsersIcon } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Branches = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const isSuperAdmin = user.role === 'super_admin';
@@ -173,6 +176,9 @@ const Branches = () => {
     }
   };
 
+  
+  const paginatedItems = branches.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -225,7 +231,7 @@ const Branches = () => {
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-500">No branches found.</td>
                 </tr>
               ) : (
-                branches.map((branch: any) => (
+                paginatedItems.map((branch: any) => (
                   <tr key={branch.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
@@ -332,7 +338,7 @@ const Branches = () => {
             <p className="text-slate-500 font-medium">No branches found.</p>
           </div>
         ) : (
-          branches.map((branch: any) => (
+          paginatedItems.map((branch: any) => (
             <div key={branch.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-start">
                 <div>
@@ -600,6 +606,13 @@ const Branches = () => {
         message="Are you sure you want to delete this branch? This action cannot be undone and all associated data will be permanently removed."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={branches.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

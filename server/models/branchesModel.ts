@@ -23,10 +23,10 @@ export async function getBranches(tenantId?: string) {
         cb.fullName as "createdByName",
         mb.fullName as "modifiedByName"
       FROM Branches b
-      JOIN Tenants t ON b.tenantId = t.id
-      LEFT JOIN TenantUsers tu ON b.managerId = tu.id
-      LEFT JOIN TenantUsers cb ON b.createdBy = cb.id
-      LEFT JOIN TenantUsers mb ON b.modifiedBy = mb.id
+      JOIN Tenants t ON b.tenantId::text = t.id::text
+      LEFT JOIN TenantUsers tu ON b.managerId::text = tu.id::text
+      LEFT JOIN TenantUsers cb ON b.createdBy::text = cb.id::text
+      LEFT JOIN TenantUsers mb ON b.modifiedBy::text = mb.id::text
       WHERE b.tenantId = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
     `,
       [tenantId]
@@ -53,10 +53,10 @@ export async function getBranches(tenantId?: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM Branches b
-    JOIN Tenants t ON b.tenantId = t.id
-    LEFT JOIN TenantUsers tu ON b.managerId = tu.id
-    LEFT JOIN TenantUsers cb ON b.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON b.modifiedBy = mb.id
+    JOIN Tenants t ON b.tenantId::text = t.id::text
+    LEFT JOIN TenantUsers tu ON b.managerId::text = tu.id::text
+    LEFT JOIN TenantUsers cb ON b.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON b.modifiedBy::text = mb.id::text
     WHERE COALESCE(b.isDeleted, FALSE) = FALSE
   `);
   return result.rows;
@@ -84,10 +84,10 @@ export async function getBranchById(id: string) {
         cb.fullName as "createdByName",
         mb.fullName as "modifiedByName"
       FROM Branches b
-      JOIN Tenants t ON b.tenantId = t.id
-      LEFT JOIN TenantUsers tu ON b.managerId = tu.id
-      LEFT JOIN TenantUsers cb ON b.createdBy = cb.id
-      LEFT JOIN TenantUsers mb ON b.modifiedBy = mb.id
+      JOIN Tenants t ON b.tenantId::text = t.id::text
+      LEFT JOIN TenantUsers tu ON b.managerId::text = tu.id::text
+      LEFT JOIN TenantUsers cb ON b.createdBy::text = cb.id::text
+      LEFT JOIN TenantUsers mb ON b.modifiedBy::text = mb.id::text
       WHERE b.id = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
     `,
     [id]

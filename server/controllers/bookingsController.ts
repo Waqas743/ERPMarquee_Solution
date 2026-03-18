@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import {
+
   checkBookingAvailability as checkBookingAvailabilityModel,
   createBooking as createBookingModel,
   createBookingPayment as createBookingPaymentModel,
@@ -15,6 +16,10 @@ import {
   updateBooking as updateBookingModel,
   updateBookingStatus as updateBookingStatusModel,
   upsertBookingContract as upsertBookingContractModel,
+  listBookingFollowUps as listBookingFollowUpsModel,
+  createBookingFollowUp as createBookingFollowUpModel,
+  updateBookingFollowUp as updateBookingFollowUpModel,
+  deleteBookingFollowUp as deleteBookingFollowUpModel,
 } from "../models/bookingsModel";
 
 export async function checkBookingAvailability(req: Request, res: Response) {
@@ -137,6 +142,7 @@ export async function updateBooking(req: Request, res: Response) {
     fireworkQuantity,
     menuItems,
     selectedAddOns,
+    payments,
   } = req.body;
   try {
     const existingBooking = await getBookingById(id);
@@ -144,7 +150,7 @@ export async function updateBooking(req: Request, res: Response) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    const canEdit = existingBooking.status === 'Pending' || (existingBooking.status === 'Approved' && existingBooking.paymentStatus === 'Unpaid');
+    const canEdit = existingBooking.status === 'Pending' || (existingBooking.status === 'Approved' && existingBooking.paymentStatus === 'Unpaid') || (existingBooking.status === 'Approved' && existingBooking.paymentStatus === 'Not Paid');
     if (!canEdit) {
       return res.status(403).json({ message: "Cannot edit booking. Only Pending bookings or Approved bookings without payments can be edited." });
     }
@@ -170,8 +176,10 @@ export async function updateBooking(req: Request, res: Response) {
       fireworkQuantity,
       menuItems,
       selectedAddOns,
+      payments,
       modifiedBy: authUserId,
     });
+    console.log("updateBookingModel payments passed:", payments);
     res.json({ message: "Booking updated successfully" });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -256,4 +264,62 @@ export async function listBookingMenuItems(req: Request, res: Response) {
 export async function listBookingAddOns(req: Request, res: Response) {
   const { id } = req.params;
   res.json(await listBookingAddOnsModel(id));
+}
+
+export async function listBookingFollowUps(req: Request, res: Response) {
+  const { id } = req.params;
+  console.log(`Listing follow ups for booking ${id}`);
+  try {
+    res.json(await listBookingFollowUpsModel(id));
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+}
+
+export async function createBookingFollowUp(req: Request, res: Response) {
+  const authUserId = (req as any).auth?.userId;
+  const { id } = req.params;
+  const { userId, type, status, followUpDate, notes } = req.body;
+  try {
+    const followUpId = await createBookingFollowUpModel(id, {
+      userId,
+      type,
+      status,
+      followUpDate,
+      notes,
+      createdBy: authUserId,
+    });
+    res.json({ id: followUpId });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+}
+
+export async function updateBookingFollowUp(req: Request, res: Response) {
+  const authUserId = (req as any).auth?.userId;
+  const { followUpId } = req.params;
+  const { type, status, followUpDate, notes } = req.body;
+  try {
+    await updateBookingFollowUpModel(followUpId, {
+      type,
+      status,
+      followUpDate,
+      notes,
+      modifiedBy: authUserId,
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+}
+
+export async function deleteBookingFollowUp(req: Request, res: Response) {
+  const authUserId = (req as any).auth?.userId;
+  const { followUpId } = req.params;
+  try {
+    await deleteBookingFollowUpModel(followUpId, authUserId);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
 }

@@ -17,8 +17,8 @@ export async function listEventPackages(tenantId: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM EventPackages e
-    LEFT JOIN TenantUsers cb ON e.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON e.modifiedBy = mb.id
+    LEFT JOIN TenantUsers cb ON e.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON e.modifiedBy::text = mb.id::text
     WHERE e.tenantId = $1 AND COALESCE(e.isDeleted, FALSE) = FALSE`, 
     [tenantId]
   );
@@ -42,8 +42,8 @@ export async function getEventPackageById(id: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM EventPackages e
-    LEFT JOIN TenantUsers cb ON e.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON e.modifiedBy = mb.id
+    LEFT JOIN TenantUsers cb ON e.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON e.modifiedBy::text = mb.id::text
     WHERE e.id = $1 AND COALESCE(e.isDeleted, FALSE) = FALSE`, 
     [id]
   );
@@ -62,8 +62,8 @@ export async function getEventPackageById(id: string) {
           mi.name as "itemName", 
           mc.name as "categoryName"
         FROM PackageMenuMapping pmm
-        JOIN MenuItems mi ON pmm.menuItemId = mi.id
-        JOIN MenuCategories mc ON mi.categoryId = mc.id
+        JOIN MenuItems mi ON pmm.menuItemId::text = mi.id::text
+        JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text
         WHERE pmm.packageId = $1 AND COALESCE(pmm.isDeleted, FALSE) = FALSE AND COALESCE(mi.isDeleted, FALSE) = FALSE
       `,
       [id]
@@ -80,7 +80,7 @@ export async function getEventPackageById(id: string) {
           ao.price, 
           ao.description
         FROM PackageAddons pa
-        JOIN AddOns ao ON pa.addOnId = ao.id
+        JOIN AddOns ao ON pa.addOnId::text = ao.id::text
         WHERE pa.packageId = $1 AND COALESCE(pa.isDeleted, FALSE) = FALSE AND COALESCE(ao.isDeleted, FALSE) = FALSE
       `,
       [id]

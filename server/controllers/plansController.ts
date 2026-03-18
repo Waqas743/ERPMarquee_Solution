@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { createPlan as createPlanModel, deletePlan as deletePlanModel, getPlans, updatePlan as updatePlanModel } from "../models/plansModel";
 
+
 export async function listPlans(req: Request, res: Response) {
   res.json(await getPlans());
 }

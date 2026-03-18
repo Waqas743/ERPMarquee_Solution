@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { createTenant as createTenantModel, deleteTenant as deleteTenantModel, getTenants, updateTenant as updateTenantModel } from "../models/tenantsModel";
 
+
 export async function listTenants(req: Request, res: Response) {
   res.json(await getTenants());
 }
@@ -44,7 +45,7 @@ export async function createTenant(req: Request, res: Response) {
       country: country || "Pakistan",
       logoUrl,
       domain: domain || "",
-      subscriptionPlanId: subscriptionPlanId ? Number(subscriptionPlanId) : null,
+      subscriptionPlanId: subscriptionPlanId || null,
       subscriptionStartDate: subscriptionStartDate || new Date().toISOString(),
       subscriptionEndDate: subscriptionEndDate || null,
       maxBranchesAllowed: Number(maxBranchesAllowed || 0),
@@ -105,8 +106,8 @@ export async function updateTenant(req: Request, res: Response) {
       country: country || "Pakistan",
       logoUrl,
       domain: domain || "",
-      subscriptionPlanId: subscriptionPlanId ? Number(subscriptionPlanId) : null,
-      subscriptionStartDate: subscriptionStartDate || null,
+      subscriptionPlanId: subscriptionPlanId || null,
+      subscriptionStartDate: subscriptionStartDate || new Date().toISOString(),
       subscriptionEndDate: subscriptionEndDate || null,
       maxBranchesAllowed: Number(maxBranchesAllowed || 0),
       maxUsersAllowed: Number(maxUsersAllowed || 0),

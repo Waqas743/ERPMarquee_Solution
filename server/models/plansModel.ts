@@ -6,8 +6,8 @@ export async function getPlans() {
            cu.fullName as "createdByName", 
            mu.fullName as "modifiedByName"
     FROM SubscriptionPlans sp
-    LEFT JOIN TenantUsers cu ON sp.createdBy = cu.id
-    LEFT JOIN TenantUsers mu ON sp.modifiedBy = mu.id
+    LEFT JOIN TenantUsers cu ON b.createdBy::text = cu.id::text
+    LEFT JOIN TenantUsers mu ON b.modifiedBy::text = mu.id::text
     WHERE COALESCE(sp.isDeleted, FALSE) = FALSE 
     ORDER BY sp.id DESC
   `);

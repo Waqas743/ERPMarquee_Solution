@@ -16,8 +16,8 @@ export async function listMenuCategories(tenantId: string) {
         cb.fullName as "createdByName",
         mb.fullName as "modifiedByName"
       FROM MenuCategories c
-      LEFT JOIN TenantUsers cb ON c.createdBy = cb.id
-      LEFT JOIN TenantUsers mb ON c.modifiedBy = mb.id
+      LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
+      LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
       WHERE c.tenantId = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
     `,
     [tenantId]
@@ -41,8 +41,8 @@ export async function getMenuCategoryById(id: string) {
         cb.fullName as "createdByName",
         mb.fullName as "modifiedByName"
       FROM MenuCategories c
-      LEFT JOIN TenantUsers cb ON c.createdBy = cb.id
-      LEFT JOIN TenantUsers mb ON c.modifiedBy = mb.id
+      LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
+      LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
       WHERE c.id = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
     `,
     [id]
@@ -110,9 +110,9 @@ export async function listMenuItems(tenantId: string, categoryId?: string) {
       cb.fullName as "createdByName",
       mb.fullName as "modifiedByName"
     FROM MenuItems mi 
-    JOIN MenuCategories mc ON mi.categoryId = mc.id 
-    LEFT JOIN TenantUsers cb ON mi.createdBy = cb.id
-    LEFT JOIN TenantUsers mb ON mi.modifiedBy = mb.id
+    JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text 
+    LEFT JOIN TenantUsers cb ON mi.createdBy::text = cb.id::text
+    LEFT JOIN TenantUsers mb ON mi.modifiedBy::text = mb.id::text
     WHERE mi.tenantId = $1 AND COALESCE(mi.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [tenantId];
@@ -141,9 +141,9 @@ export async function getMenuItemById(id: string) {
         cb.fullName as "createdByName",
         mb.fullName as "modifiedByName"
       FROM MenuItems mi 
-      JOIN MenuCategories mc ON mi.categoryId = mc.id 
-      LEFT JOIN TenantUsers cb ON mi.createdBy = cb.id
-      LEFT JOIN TenantUsers mb ON mi.modifiedBy = mb.id
+      JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text 
+      LEFT JOIN TenantUsers cb ON mi.createdBy::text = cb.id::text
+      LEFT JOIN TenantUsers mb ON mi.modifiedBy::text = mb.id::text
       WHERE mi.id = $1 AND COALESCE(mi.isDeleted, FALSE) = FALSE
     `,
     [id]

@@ -1,3 +1,4 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { 
   Plus, Search, MoreVertical, Edit2, Trash2, 
@@ -8,6 +9,8 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const MenuManagement = () => {
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 10;
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'reports'>('items');
@@ -202,6 +205,9 @@ const MenuManagement = () => {
     return matchesSearch && matchesCategory;
   });
 
+  
+  const paginatedItems = filteredItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -263,7 +269,7 @@ const MenuManagement = () => {
                 type="text"
                 placeholder="Search items..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
               />
             </div>
@@ -296,7 +302,7 @@ const MenuManagement = () => {
                 ) : filteredItems.length === 0 ? (
                   <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No items found.</td></tr>
                 ) : (
-                  filteredItems.map((item: any) => (
+                  paginatedItems.map((item: any) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
@@ -347,6 +353,13 @@ const MenuManagement = () => {
                 )}
               </tbody>
             </table>
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={filteredItems.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
+      />
+    
           </div>
         </div>
       ) : activeTab === 'categories' ? (

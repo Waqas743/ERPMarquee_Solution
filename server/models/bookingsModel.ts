@@ -8,7 +8,7 @@ export async function checkBookingAvailability(data: {
 }) {
   let queryText = `
     SELECT bookingNumber as "bookingNumber" FROM Bookings 
-    WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status NOT IN ('Cancelled', 'Rejected') AND COALESCE(isDeleted, FALSE) = FALSE
+    WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND COALESCE(isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [data.hallId, data.eventDate, data.slot];
   if (data.excludeId) {
@@ -17,6 +17,42 @@ export async function checkBookingAvailability(data: {
   }
   const result = await query(queryText, params);
   return result.rows[0] as { bookingNumber: string } | undefined;
+}
+
+async function rejectConflictingBookings(
+  client: any,
+  hallId: string,
+  eventDate: string,
+  slot: string,
+  approvedBookingId: string,
+  approvedBookingNumber: string,
+  userId: string | null
+) {
+  const pendingBookings = await query(
+    `SELECT id, bookingNumber FROM Bookings 
+     WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status = 'Pending' AND id != $4 AND COALESCE(isDeleted, FALSE) = FALSE`,
+    [hallId, eventDate, slot, approvedBookingId],
+    client
+  );
+
+  if (pendingBookings.rowCount > 0) {
+    await query(
+      `UPDATE Bookings 
+       SET status = 'Rejected', modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $1 
+       WHERE hallId = $2 AND eventDate = $3 AND slot = $4 AND status = 'Pending' AND id != $5 AND COALESCE(isDeleted, FALSE) = FALSE`,
+      [userId, hallId, eventDate, slot, approvedBookingId],
+      client
+    );
+
+    for (const row of pendingBookings.rows) {
+      await query(
+        `INSERT INTO BookingApprovals (bookingId, userId, status, comments, createdBy)
+         VALUES ($1, $2, 'Rejected', $3, $4)`,
+        [row.id, userId, `System Auto-Rejection: Slot confirmed for Booking #${approvedBookingNumber}`, userId],
+        client
+      );
+    }
+  }
 }
 
 export async function listBookings(data: {
@@ -61,11 +97,11 @@ export async function listBookings(data: {
       h.hallName as "hallName", 
       br.name as "branchName"
     FROM Bookings b
-    JOIN Customers c ON b.customerId = c.id
-    JOIN Halls h ON b.hallId = h.id
-    JOIN Branches br ON b.branchId = br.id
-    LEFT JOIN TenantUsers cu ON b.createdBy = cu.id
-    LEFT JOIN TenantUsers mu ON b.modifiedBy = mu.id
+    JOIN Customers c ON b.customerId::text = c.id::text
+    JOIN Halls h ON b.hallId::text = h.id::text
+    JOIN Branches br ON b.branchId::text = br.id::text
+    LEFT JOIN TenantUsers cu ON b.createdBy::text = cu.id::text
+      LEFT JOIN TenantUsers mu ON b.modifiedBy::text = mu.id::text
     WHERE b.tenantId = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [data.tenantId];
@@ -129,13 +165,13 @@ export async function getBookingById(id: string) {
       t.name as "tenantName", 
       t.logoUrl as "tenantLogoUrl"
     FROM Bookings b
-    JOIN Customers c ON b.customerId = c.id
-    JOIN Halls h ON b.hallId = h.id
-    JOIN Branches br ON b.branchId = br.id
-    JOIN Tenants t ON b.tenantId = t.id
-    LEFT JOIN TenantUsers cu ON b.createdBy = cu.id
-    LEFT JOIN TenantUsers mu ON b.modifiedBy = mu.id
-    LEFT JOIN EventPackages ep ON b.packageId = ep.id
+    JOIN Customers c ON b.customerId::text = c.id::text
+    JOIN Halls h ON b.hallId::text = h.id::text
+    JOIN Branches br ON b.branchId::text = br.id::text
+    JOIN Tenants t ON b.tenantId::text = t.id::text
+    LEFT JOIN TenantUsers cu ON b.createdBy::text = cu.id::text
+    LEFT JOIN TenantUsers mu ON b.modifiedBy::text = mu.id::text
+    LEFT JOIN EventPackages ep ON b.packageId::text = ep.id::text
     WHERE b.id = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
   `, [id]);
   const booking = bookingResult.rows[0] as any;
@@ -155,8 +191,8 @@ export async function getBookingById(id: string) {
         mi.name as "itemName", 
         mc.name as "categoryName"
       FROM BookingMenuItems bmi
-      JOIN MenuItems mi ON bmi.menuItemId = mi.id
-      JOIN MenuCategories mc ON mi.categoryId = mc.id
+      JOIN MenuItems mi ON bmi.menuItemId::text = mi.id::text
+      JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text
       WHERE bmi.bookingId = $1 AND COALESCE(bmi.isDeleted, FALSE) = FALSE
     `, [id])).rows;
     booking.menuItems = menuItems;
@@ -172,7 +208,7 @@ export async function getBookingById(id: string) {
         bao.modifiedBy as "modifiedBy",
         ao.name as "addOnName"
       FROM BookingAddOns bao
-      JOIN AddOns ao ON bao.addOnId = ao.id
+      JOIN AddOns ao ON bao.addOnId::text = ao.id::text
       WHERE bao.bookingId = $1 AND COALESCE(bao.isDeleted, FALSE) = FALSE
     `, [id])).rows;
     booking.selectedAddOns = selectedAddOns;
@@ -198,8 +234,8 @@ export async function listBookingMenuItems(id: string) {
           mi.name as "itemName", 
           mc.name as "categoryName"
         FROM BookingMenuItems bmi
-        JOIN MenuItems mi ON bmi.menuItemId = mi.id
-        JOIN MenuCategories mc ON mi.categoryId = mc.id
+        JOIN MenuItems mi ON bmi.menuItemId::text = mi.id::text
+        JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text
         WHERE bmi.bookingId = $1 AND COALESCE(bmi.isDeleted, FALSE) = FALSE
       `,
       [id]
@@ -222,7 +258,7 @@ export async function listBookingAddOns(id: string) {
           bao.modifiedBy as "modifiedBy",
           ao.name as "addOnName"
         FROM BookingAddOns bao
-        JOIN AddOns ao ON bao.addOnId = ao.id
+        JOIN AddOns ao ON bao.addOnId::text = ao.id::text
         WHERE bao.bookingId = $1 AND COALESCE(bao.isDeleted, FALSE) = FALSE
       `,
       [id]
@@ -262,22 +298,25 @@ export async function createBooking(data: {
   const existingBooking = await query(
     `
       SELECT bookingNumber as "bookingNumber" FROM Bookings 
-      WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status NOT IN ('Cancelled', 'Rejected') AND COALESCE(isDeleted, FALSE) = FALSE
+      WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND COALESCE(isDeleted, FALSE) = FALSE
     `,
     [data.hallId, data.eventDate, data.slot]
   );
   if (existingBooking.rowCount > 0) {
-    throw new Error(`This hall is already booked for ${data.eventDate} (${data.slot} slot). Booking Number: ${existingBooking.rows[0].bookingNumber}`);
+    throw new Error(`This hall is already booked (Approved/Confirmed) for ${data.eventDate} (${data.slot} slot). Booking Number: ${existingBooking.rows[0].bookingNumber}`);
   }
   const bookingNumber = `BK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const hasPayments = data.payments && Array.isArray(data.payments) && data.payments.length > 0;
+  const initialStatus = hasPayments ? 'Approved' : 'Pending';
+
   const bookingId = await withTransaction(async (client) => {
     const info = await query(
       `
         INSERT INTO Bookings (
           tenantId, branchId, hallId, customerId, packageId, bookingNumber, eventType, eventDate, slot, guestCount,
           hallRent, decorationCharges, cateringCharges, addOnsCharges, discount, tax, grandTotal,
-          djCharges, fireworkPrice, fireworkQuantity, createdBy
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+          djCharges, fireworkPrice, fireworkQuantity, status, createdBy
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         RETURNING id
       `,
       [
@@ -301,6 +340,7 @@ export async function createBooking(data: {
         data.djCharges || 0,
         data.fireworkPrice || 0,
         data.fireworkQuantity || 0,
+        initialStatus,
         data.createdBy || null,
       ],
       client
@@ -327,10 +367,26 @@ export async function createBooking(data: {
       for (const p of data.payments) {
         await query(
           `
-            INSERT INTO BookingPayments (bookingId, amount, dueDate, type, status, createdBy)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO BookingPayments (bookingId, amount, dueDate, type, status, paidDate, createdBy)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
           `,
-          [bookingId, p.amount, p.dueDate, p.type, "Pending", data.createdBy || null],
+          [bookingId, p.amount, p.dueDate, p.type, "Paid", new Date().toISOString().split("T")[0], data.createdBy || null],
+          client
+        );
+      }
+
+      if (data.payments.length > 0) {
+        const totalPaid = data.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        let paymentStatus = "Not Paid";
+        if (totalPaid >= Number(data.grandTotal) - 0.01) {
+          paymentStatus = "Paid";
+        } else if (totalPaid > 0) {
+          paymentStatus = "Partial Paid";
+        }
+
+        await query(
+          "UPDATE Bookings SET paymentStatus = $1 WHERE id = $2",
+          [paymentStatus, bookingId],
           client
         );
       }
@@ -359,6 +415,18 @@ export async function createBooking(data: {
         );
       }
     }
+
+    if (initialStatus === 'Approved') {
+      await rejectConflictingBookings(
+        client,
+        data.hallId,
+        data.eventDate,
+        data.slot,
+        bookingId,
+        bookingNumber,
+        data.createdBy || null
+      );
+    }
     return bookingId;
   });
   return { bookingId, bookingNumber };
@@ -385,54 +453,67 @@ export async function updateBooking(id: string, data: {
   fireworkQuantity?: number;
   menuItems?: Array<{ menuItemId: string; quantity: number; unitPrice?: number; notes?: string }>;
   selectedAddOns?: Array<{ id: string; price: number }>;
+  payments?: Array<{ amount: number; dueDate?: string; type?: string }>;
   modifiedBy?: string;
 }) {
   const existingBooking = await query(
     `
       SELECT bookingNumber as "bookingNumber" FROM Bookings 
-      WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status NOT IN ('Cancelled', 'Rejected') AND id != $4 AND COALESCE(isDeleted, FALSE) = FALSE
+      WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND id != $4 AND COALESCE(isDeleted, FALSE) = FALSE
     `,
     [data.hallId, data.eventDate, data.slot, id]
   );
   if (existingBooking.rowCount > 0) {
-    throw new Error(`This hall is already booked for ${data.eventDate} (${data.slot} slot). Booking Number: ${existingBooking.rows[0].bookingNumber}`);
+    throw new Error(`This hall is already booked (Approved/Confirmed) for ${data.eventDate} (${data.slot} slot). Booking Number: ${existingBooking.rows[0].bookingNumber}`);
   }
-  const booking = (await query("SELECT paymentStatus FROM Bookings WHERE id = $1", [id])).rows[0] as any;
-  if (booking && booking.paymentStatus !== "Unpaid") {
+  const booking = (await query("SELECT status, paymentStatus, bookingNumber FROM Bookings WHERE id = $1", [id])).rows[0] as any;
+  if (booking && booking.paymentstatus?.toLowerCase() !== 'unpaid' && booking.paymentstatus?.toLowerCase() !== 'not paid') {
     throw new Error("Cannot edit booking as payment has already been started (Partial or Full).");
   }
+  
+  const hasPayments = data.payments && Array.isArray(data.payments) && data.payments.length > 0;
+  
   await withTransaction(async (client) => {
+    // If we are adding payments during edit, we should automatically approve it
+    let statusUpdateStr = "";
+    let paramsOffset = 0;
+    const updateParams: any[] = [
+      data.branchId,
+      data.hallId,
+      data.customerId,
+      data.packageId || null,
+      data.eventType,
+      data.eventDate,
+      data.slot,
+      data.guestCount,
+      data.hallRent,
+      data.decorationCharges,
+      data.cateringCharges,
+      data.addOnsCharges,
+      data.discount,
+      data.tax,
+      data.grandTotal,
+      data.djCharges || 0,
+      data.fireworkPrice || 0,
+      data.fireworkQuantity || 0,
+      data.modifiedBy || null,
+      id,
+    ];
+
+    if (hasPayments) {
+      statusUpdateStr = ", status = 'Approved'";
+    }
+
     await query(
       `
         UPDATE Bookings SET 
           branchId = $1, hallId = $2, customerId = $3, packageId = $4, eventType = $5, eventDate = $6, slot = $7, guestCount = $8,
           hallRent = $9, decorationCharges = $10, cateringCharges = $11, addOnsCharges = $12, discount = $13, tax = $14, grandTotal = $15,
           djCharges = $16, fireworkPrice = $17, fireworkQuantity = $18,
-          modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $19
+          modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $19${statusUpdateStr}
         WHERE id = $20
       `,
-      [
-        data.branchId,
-        data.hallId,
-        data.customerId,
-        data.packageId || null,
-        data.eventType,
-        data.eventDate,
-        data.slot,
-        data.guestCount,
-        data.hallRent,
-        data.decorationCharges,
-        data.cateringCharges,
-        data.addOnsCharges,
-        data.discount,
-        data.tax,
-        data.grandTotal,
-        data.djCharges || 0,
-        data.fireworkPrice || 0,
-        data.fireworkQuantity || 0,
-        data.modifiedBy || null,
-        id,
-      ],
+      updateParams,
       client
     );
     await query(
@@ -452,6 +533,45 @@ export async function updateBooking(id: string, data: {
       ],
       client
     );
+    
+    if (data.payments && Array.isArray(data.payments)) {
+      for (const p of data.payments) {
+        await query(
+          `
+            INSERT INTO BookingPayments (bookingId, amount, dueDate, type, status, paidDate, createdBy)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `,
+          [id, p.amount, p.dueDate, p.type, "Paid", new Date().toISOString().split("T")[0], data.modifiedBy || null],
+          client
+        );
+      }
+    }
+
+    // Always recalculate payment status in case grandTotal changed or new payments were added
+    const paymentsRes = await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id], client);
+    const totalPaid = paymentsRes.rows.filter(p => p.status === "Paid").reduce((sum, p) => sum + Number(p.amount), 0);
+    
+    let paymentStatus = "Not Paid";
+    if (totalPaid >= Number(data.grandTotal) - 0.01) {
+      paymentStatus = "Paid";
+    } else if (totalPaid > 0) {
+      paymentStatus = "Partial Paid";
+    }
+
+    let status = booking.status;
+    if (status === 'Pending' && totalPaid > 0) {
+      status = 'Approved';
+    }
+    if (hasPayments) {
+      status = 'Approved';
+    }
+
+    await query(
+      "UPDATE Bookings SET paymentStatus = $1, status = $2 WHERE id = $3",
+      [paymentStatus, status, id],
+      client
+    );
+
     if (data.menuItems && Array.isArray(data.menuItems)) {
       await query(
         "UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE",
@@ -486,6 +606,18 @@ export async function updateBooking(id: string, data: {
         );
       }
     }
+    
+    if (status === 'Approved') {
+      await rejectConflictingBookings(
+        client,
+        data.hallId,
+        data.eventDate,
+        data.slot,
+        id,
+        booking.bookingNumber,
+        data.modifiedBy || null
+      );
+    }
   });
 }
 
@@ -495,7 +627,24 @@ export async function updateBookingStatus(id: string, data: {
   comments?: string;
 }) {
   await withTransaction(async (client) => {
-    const booking = (await query('SELECT status, paymentStatus as "paymentStatus" FROM Bookings WHERE id = $1', [id], client)).rows[0] as any;
+    const booking = (await query('SELECT status, paymentStatus as "paymentStatus", hallId as "hallId", eventDate as "eventDate", slot as "slot", bookingNumber as "bookingNumber" FROM Bookings WHERE id = $1', [id], client)).rows[0] as any;
+    
+    // Check for conflicts if approving
+    if (['Approved', 'Confirmed'].includes(data.status)) {
+      const existingApproved = await query(
+        `
+          SELECT bookingNumber as "bookingNumber" FROM Bookings 
+          WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND id != $4 AND COALESCE(isDeleted, FALSE) = FALSE
+        `,
+        [booking.hallId, booking.eventDate, booking.slot, id],
+        client
+      );
+      
+      if (existingApproved.rowCount > 0) {
+        throw new Error(`This date/slot is already booked and approved for another customer (Booking #${existingApproved.rows[0].bookingNumber}). You cannot approve this booking.`);
+      }
+    }
+
     if (data.status === "Cancelled") {
       if (booking.status === "Approved" && booking.paymentStatus !== "Not Paid") {
         throw new Error("Approved bookings with partial or full payments cannot be cancelled.");
@@ -526,6 +675,18 @@ export async function updateBookingStatus(id: string, data: {
       [id, data.userId, data.status, data.comments, data.userId],
       client
     );
+
+    if (['Approved', 'Confirmed'].includes(data.status)) {
+      await rejectConflictingBookings(
+        client,
+        booking.hallId,
+        booking.eventDate,
+        booking.slot,
+        id,
+        booking.bookingNumber,
+        data.userId
+      );
+    }
   });
 }
 
@@ -669,7 +830,7 @@ export async function listBookingApprovals(id: string) {
       a.modifiedBy as "modifiedBy",
       u.fullName as "userName"
     FROM BookingApprovals a
-    JOIN TenantUsers u ON a.userId = u.id
+    JOIN TenantUsers u ON a.userId::text = u.id::text
     WHERE a.bookingId = $1 AND COALESCE(a.isDeleted, FALSE) = FALSE
     ORDER BY a.createdAt DESC
   `, [id])).rows;
@@ -691,4 +852,49 @@ export async function upsertBookingContract(id: string, content: string, modifie
   }
   const info = await query("INSERT INTO Contracts (bookingId, content, createdBy) VALUES ($1, $2, $3) RETURNING id", [id, content, modifiedBy || null]);
   return info.rows[0]?.id;
+}
+
+export async function listBookingFollowUps(bookingId: string) {
+  return (await query(`
+    SELECT 
+      f.id,
+      f.bookingId as "bookingId",
+      f.userId as "userId",
+      f.type,
+      f.status,
+      f.followUpDate as "followUpDate",
+      f.notes,
+      f.createdAt as "createdAt",
+      f.modifiedAt as "modifiedAt",
+      f.createdBy as "createdBy",
+      f.modifiedBy as "modifiedBy",
+      u.fullName as "userName"
+    FROM BookingFollowUps f
+    JOIN TenantUsers u ON f.userId::text = u.id::text
+    WHERE f.bookingId = $1 AND COALESCE(f.isDeleted, FALSE) = FALSE
+    ORDER BY f.createdAt DESC
+  `, [bookingId])).rows;
+}
+
+export async function createBookingFollowUp(bookingId: string, data: { userId: string; type: string; status: string; followUpDate: string; notes: string; createdBy?: string }) {
+  const result = await query(
+    `INSERT INTO BookingFollowUps (bookingId, userId, type, status, followUpDate, notes, createdBy) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [bookingId, data.userId, data.type, data.status, data.followUpDate, data.notes, data.createdBy || null]
+  );
+  return result.rows[0]?.id;
+}
+
+export async function updateBookingFollowUp(id: string, data: { type: string; status: string; followUpDate: string; notes: string; modifiedBy?: string }) {
+  await query(
+    `UPDATE BookingFollowUps SET type = $1, status = $2, followUpDate = $3, notes = $4, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5 WHERE id = $6`,
+    [data.type, data.status, data.followUpDate, data.notes, data.modifiedBy || null, id]
+  );
+}
+
+export async function deleteBookingFollowUp(id: string, deletedBy?: string) {
+  await query(
+    `UPDATE BookingFollowUps SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $1 WHERE id = $2`,
+    [deletedBy || null, id]
+  );
 }

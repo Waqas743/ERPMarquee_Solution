@@ -1,3 +1,4 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, XCircle, 
@@ -10,6 +11,8 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Tasks = () => {
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 10;
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const [tasks, setTasks] = useState<any[]>([]);
@@ -137,6 +140,9 @@ const Tasks = () => {
     }
   };
 
+  
+  const paginatedItems = tasks.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -189,7 +195,7 @@ const Tasks = () => {
             <p className="text-slate-500 font-medium">No tasks found.</p>
           </div>
         ) : (
-          tasks.map((task: any) => (
+          paginatedItems.map((task: any) => (
             <div key={task.id} className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4 flex-1">
@@ -365,6 +371,13 @@ const Tasks = () => {
         message="Are you sure you want to delete this task? This action cannot be undone."
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+      />
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={tasks.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
       />
     </div>
   );

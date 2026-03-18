@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { 
   ArrowLeft, Calendar, MapPin, User, Phone, Mail, 
   CreditCard, CheckCircle2, XCircle, Clock, AlertCircle,
   FileText, Download, Upload, MessageSquare, Send,
-  Plus, Printer, Share2, MoreVertical, Trash2, DollarSign, Utensils, Edit2
+  Plus, Printer, Share2, MoreVertical, Trash2, DollarSign, Utensils, Edit2, ListTodo
 } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -14,9 +14,11 @@ import autoTable from 'jspdf-autotable';
 const BookingDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [booking, setBooking] = useState<any>(null);
   const [payments, setPayments] = useState([]);
   const [approvals, setApprovals] = useState([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
   const [contract, setContract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
@@ -39,6 +41,16 @@ const BookingDetail = () => {
   const [isContractEditorOpen, setIsContractEditorOpen] = useState(false);
   const [contractContent, setContractContent] = useState('');
   
+  // Follow Up Modal State
+  const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
+  const [editingFollowUp, setEditingFollowUp] = useState<any>(null);
+  const [followUpForm, setFollowUpForm] = useState({
+    type: 'Note',
+    status: 'Pending',
+    followUpDate: format(new Date(), 'yyyy-MM-dd'),
+    notes: ''
+  });
+
   // Print State
   const [printType, setPrintType] = useState<'details' | 'invoice' | 'contract' | null>(null);
 
@@ -47,17 +59,25 @@ const BookingDetail = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [bookingRes, paymentsRes, approvalsRes, contractRes] = await Promise.all([
+      const [bookingRes, paymentsRes, approvalsRes, contractRes, menuItemsRes, addOnsRes, followUpsRes] = await Promise.all([
         fetch(`/api/bookings/${id}`),
         fetch(`/api/bookings/${id}/payments`),
         fetch(`/api/bookings/${id}/approvals`),
-        fetch(`/api/bookings/${id}/contract`)
+        fetch(`/api/bookings/${id}/contract`),
+        fetch(`/api/bookings/${id}/menu-items`),
+        fetch(`/api/bookings/${id}/add-ons`),
+        fetch(`/api/bookings/${id}/follow-ups`)
       ]);
       
-      setBooking(await bookingRes.json());
+      const bookingData = await bookingRes.json();
+      const menuItemsData = await menuItemsRes.json();
+      const addOnsData = await addOnsRes.json();
+
+      setBooking({ ...bookingData, menuItems: menuItemsData, selectedAddOns: addOnsData });
       setPayments(await paymentsRes.json());
       setApprovals(await approvalsRes.json());
       setContract(await contractRes.json());
+      setFollowUps(await followUpsRes.json());
     } catch (error) {
       console.error("Error fetching booking details:", error);
     } finally {
@@ -69,6 +89,193 @@ const BookingDetail = () => {
     fetchData();
   }, [id]);
 
+  const generateContractPDFFile = async (content: string) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Header Background
+    doc.setFillColor(79, 70, 229);
+    doc.rect(12, 12, pageWidth - 24, 40, 'F');
+
+    let currentY = 30;
+
+    // Add Logo if exists
+    if (booking?.tenantLogoUrl) {
+      try {
+        const img = new Image();
+        img.src = booking.tenantLogoUrl;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => reject(new Error("Image load failed"));
+          setTimeout(() => reject(new Error("Image load timeout")), 3000);
+        });
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(15, 15, 30, 30, 3, 3, 'F');
+        doc.addImage(img, 'PNG', 17, 17, 26, 26);
+      } catch (e) {
+        console.error("Could not load logo", e);
+      }
+    }
+
+    // Tenant Name & Contract Title
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+    doc.text(booking?.tenantName || 'Event Management', booking?.tenantLogoUrl ? 50 : 20, 28);
+    
+    doc.setFontSize(18);
+    doc.text('CONTRACT AGREEMENT', pageWidth - 20, 42, { align: 'right' });
+    
+    currentY = 65;
+    
+    // Booking Ref & Date
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42); // Slate-900
+    doc.text(`Booking Reference: #${booking?.bookingNumber || ''}`, 20, currentY);
+    doc.text(`Date: ${format(new Date(), 'PPP')}`, pageWidth - 20, currentY, { align: 'right' });
+    
+    currentY += 5;
+    
+    // Divider line
+    doc.setDrawColor(226, 232, 240); // Slate-200
+    doc.setLineWidth(0.5);
+    doc.line(20, currentY, pageWidth - 20, currentY);
+    
+    currentY += 15;
+
+    // Content
+    doc.setFontSize(11);
+    doc.setTextColor(51, 65, 85);
+    doc.setFont("times", "normal");
+    
+    // Split text into lines to fit page
+    const splitText = doc.splitTextToSize(content, pageWidth - 40);
+    
+    for (let i = 0; i < splitText.length; i++) {
+      if (currentY > pageHeight - 50) {
+        doc.addPage();
+        
+        // Header Background on new page (optional, keeping it simple for contract continuation)
+        // doc.setFillColor(79, 70, 229);
+        // doc.rect(12, 12, pageWidth - 24, 20, 'F');
+        
+        currentY = 40;
+      }
+      doc.text(splitText[i], 20, currentY);
+      currentY += 6;
+    }
+
+    currentY += 30;
+
+    // Ensure space for signatures
+    if (currentY > pageHeight - 60) {
+      doc.addPage();
+      currentY = 60;
+    }
+
+    // Signatures
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.5);
+    
+    // Client Signature
+    doc.line(30, currentY, 80, currentY);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text('Client Signature', 55, currentY + 5, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text(booking?.customerName || '', 55, currentY + 10, { align: 'center' });
+
+    // Venue Signature
+    doc.setDrawColor(15, 23, 42);
+    doc.line(pageWidth - 80, currentY, pageWidth - 30, currentY);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text('Authorized Signature', pageWidth - 55, currentY + 5, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text(booking?.branchName || 'The Venue', pageWidth - 55, currentY + 10, { align: 'center' });
+
+    // Footer & Borders on ALL pages
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      
+      // Decorative border
+      doc.setDrawColor(79, 70, 229); // Indigo-600
+      doc.setLineWidth(1);
+      doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+      doc.setLineWidth(0.3);
+      doc.rect(12, 12, pageWidth - 24, pageHeight - 24);
+
+      // Footer Text
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - 20, pageHeight - 15, { align: 'right' });
+      doc.text(booking?.branchName || 'Event Management System', 20, pageHeight - 15);
+    }
+    
+    const pdfData = doc.output('bloburl');
+    window.open(pdfData, '_blank');
+  };
+
+  // Auto-generate contract if search param is present
+  useEffect(() => {
+    if (searchParams.get('autoContract') === 'true' && booking && !contract && !loading) {
+      const template = `
+This agreement is made on ${format(new Date(), 'PPP')} between ${booking.branchName} (hereinafter referred to as "The Venue") and ${booking.customerName} (hereinafter referred to as "The Client").
+
+1. EVENT DETAILS
+- Event Type: ${booking.eventType}
+- Event Date: ${safeFormat(booking.eventDate, 'PPP')}
+- Time Slot: ${booking.slot}
+- Hall/Venue: ${booking.hallName}
+- Expected Guests: ${booking.guestCount}
+
+2. FINANCIAL ARRANGEMENTS
+- Grand Total: Rs. ${booking.grandTotal?.toLocaleString()}
+- Advance Paid: Rs. ${payments.find((p: any) => p.type === 'Advance')?.amount?.toLocaleString() || 0}
+- The Client agrees to pay the remaining balance as per the agreed payment plan. All payments must be cleared before the event date unless otherwise specified.
+
+3. TERMS & CONDITIONS
+- Cancellation Policy: Cancellations must be made at least 30 days prior to the event date to be eligible for any refund. Advance payments are generally non-refundable.
+- Liability: The Venue is not responsible for any loss of personal belongings or valuables during the event.
+- Damages: The Client will be held responsible for any damage to the venue property caused by their guests or vendors.
+- Outside Vendors: Use of outside caterers or decorators must be approved by The Venue management in advance.
+
+By signing below, both parties agree to the terms and conditions outlined in this contract.
+        `.trim();
+      
+      const saveAndOpenContract = async () => {
+        try {
+          const res = await fetch(`/api/bookings/${id}/contract`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: template })
+          });
+          if (res.ok) {
+            // Remove the param to avoid running again
+            navigate(`/bookings/${id}`, { replace: true });
+            
+            // Re-fetch data
+            fetchData();
+            
+            // Open as PDF
+            await generateContractPDFFile(template);
+          }
+        } catch (error) {
+          console.error("Auto-contract error:", error);
+        }
+      };
+      
+      saveAndOpenContract();
+    }
+  }, [searchParams, booking, contract, loading, id, navigate, payments]);
+
   const safeFormat = (value: any, pattern: string) => {
     try {
       const dt = new Date(value);
@@ -76,6 +283,80 @@ const BookingDetail = () => {
       return format(dt, pattern);
     } catch {
       return '-';
+    }
+  };
+
+  const handleSaveFollowUp = async () => {
+    if (!followUpForm.notes || !followUpForm.followUpDate) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Notes and Follow Up Date are required' });
+      return;
+    }
+    
+    const url = editingFollowUp ? `/api/bookings/${id}/follow-ups/${editingFollowUp.id}` : `/api/bookings/${id}/follow-ups`;
+    const method = editingFollowUp ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({ ...followUpForm, userId: user.id })
+      });
+
+      if (res.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Success',
+          text: `Follow up ${editingFollowUp ? 'updated' : 'added'} successfully`,
+          timer: 1500,
+          showConfirmButton: false
+        });
+        setIsFollowUpModalOpen(false);
+        setEditingFollowUp(null);
+        setFollowUpForm({
+          type: 'Note',
+          status: 'Pending',
+          followUpDate: format(new Date(), 'yyyy-MM-dd'),
+          notes: ''
+        });
+        fetchData();
+      } else {
+        const errorData = await res.json();
+        Swal.fire({ icon: 'error', title: 'Error', text: errorData.message || 'Failed to save follow up' });
+      }
+    } catch (error) {
+      console.error('Error saving follow up:', error);
+    }
+  };
+
+  const handleDeleteFollowUp = async (followUpId: string) => {
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#4f46e5',
+      cancelButtonColor: '#ef4444',
+      confirmButtonText: 'Yes, delete it!'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const res = await fetch(`/api/bookings/${id}/follow-ups/${followUpId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          }
+        });
+        if (res.ok) {
+          fetchData();
+          Swal.fire('Deleted!', 'Follow up has been deleted.', 'success');
+        }
+      } catch (error) {
+        console.error("Error deleting follow up:", error);
+      }
     }
   };
 
@@ -129,7 +410,7 @@ const BookingDetail = () => {
     }
   };
 
-  const handleDeletePayment = async (paymentId: number) => {
+  const handleDeletePayment = async (paymentId: string) => {
     const payment = payments.find((p: any) => p.id === paymentId) as any;
     if (payment && payment.status === 'Paid') {
       Swal.fire({
@@ -245,107 +526,174 @@ const BookingDetail = () => {
   const generateInvoicePDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
-    let headerHeight = 45;
+    // Decorative border
+    // Moved to the end to draw on all pages
+
+    // Header Background
+    doc.setFillColor(79, 70, 229);
+    doc.rect(12, 12, pageWidth - 24, 40, 'F');
+
+    let headerHeight = 65;
 
     // Add Logo if exists
-    if (booking.tenantLogoUrl) {
+    if (booking?.tenantLogoUrl) {
       try {
         const img = new Image();
         img.src = booking.tenantLogoUrl;
         await new Promise((resolve, reject) => {
           img.onload = resolve;
           img.onerror = () => reject(new Error("Image load failed"));
-          // Timeout after 3 seconds
           setTimeout(() => reject(new Error("Image load timeout")), 3000);
         });
-        doc.addImage(img, 'PNG', 15, 10, 25, 25);
+        // Draw white background for logo so it pops on the indigo header
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(15, 15, 30, 30, 3, 3, 'F');
+        doc.addImage(img, 'PNG', 17, 17, 26, 26);
       } catch (e) {
         console.error("Could not load logo", e);
       }
     }
 
-    // Tenant Name
-    doc.setFontSize(18);
-    doc.setTextColor(15, 23, 42);
-    doc.text(booking.tenantName || 'Event Management System', booking.tenantLogoUrl ? 45 : 15, 25);
+    // Tenant Name & Invoice Title
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+    doc.text(booking?.tenantName || 'Event Management', booking?.tenantLogoUrl ? 50 : 20, 28);
     
-    // Header
     doc.setFontSize(24);
-    doc.setTextColor(79, 70, 229); // Indigo-600
-    doc.text('INVOICE', pageWidth - 15, 25, { align: 'right' });
+    doc.text('INVOICE', pageWidth - 20, 42, { align: 'right' });
     
+    // Sub-header details
     doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139); // Slate-500
-    doc.text(`Invoice No: INV-${booking.bookingNumber}`, 15, headerHeight - 5);
-    doc.text(`Date: ${format(new Date(), 'PPP')}`, pageWidth - 15, headerHeight - 5, { align: 'right' });
-    
-    // Company & Customer Info
-    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42); // Slate-900
-    doc.text('From:', 15, headerHeight + 10);
-    doc.setFontSize(10);
-    doc.text(booking.branchName || 'Main Branch', 15, headerHeight + 15);
-    doc.text('Venue: ' + booking.hallName, 15, headerHeight + 20);
+    doc.text(`Invoice No: INV-${booking?.bookingNumber}`, 20, headerHeight);
+    doc.text(`Date: ${format(new Date(), 'PPP')}`, pageWidth - 20, headerHeight, { align: 'right' });
     
-    doc.setFontSize(12);
-    doc.text('Bill To:', pageWidth - 15, headerHeight + 10, { align: 'right' });
+    // Divider line
+    doc.setDrawColor(226, 232, 240); // Slate-200
+    doc.setLineWidth(0.5);
+    doc.line(20, headerHeight + 5, pageWidth - 20, headerHeight + 5);
+
+    // Company & Customer Info
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(79, 70, 229);
+    doc.text('BILL FROM:', 20, headerHeight + 15);
+    doc.text('BILL TO:', pageWidth - 20, headerHeight + 15, { align: 'right' });
+
     doc.setFontSize(10);
-    doc.text(booking.customerName, pageWidth - 15, headerHeight + 15, { align: 'right' });
-    doc.text(booking.customerPhone || '', pageWidth - 15, headerHeight + 20, { align: 'right' });
-    doc.text(booking.customerEmail || '', pageWidth - 15, headerHeight + 25, { align: 'right' });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(51, 65, 85);
+    doc.text(booking?.branchName || 'Main Branch', 20, headerHeight + 22);
+    doc.text('Venue: ' + (booking?.hallName || ''), 20, headerHeight + 28);
     
+    doc.text(booking?.customerName || '', pageWidth - 20, headerHeight + 22, { align: 'right' });
+    doc.text(booking?.customerPhone || '', pageWidth - 20, headerHeight + 28, { align: 'right' });
+    doc.text(booking?.customerEmail || '', pageWidth - 20, headerHeight + 34, { align: 'right' });
+    
+    // Event Details Background Box
+    doc.setFillColor(248, 250, 252); // Slate-50
+    doc.roundedRect(20, headerHeight + 42, pageWidth - 40, 25, 3, 3, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(20, headerHeight + 42, pageWidth - 40, 25, 3, 3, 'S');
+
     // Event Details
-    doc.setFontSize(12);
-    doc.text('Event Details:', 15, headerHeight + 40);
     doc.setFontSize(10);
-    doc.text(`Type: ${booking.eventType}`, 15, headerHeight + 45);
-    doc.text(`Date: ${safeFormat(booking.eventDate, 'PPP')}`, 15, headerHeight + 50);
-    doc.text(`Slot: ${booking.slot}`, 15, headerHeight + 55);
-    doc.text(`Guests: ${booking.guestCount}`, 15, headerHeight + 60);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text('Event Details:', 25, headerHeight + 50);
     
-    // Table
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Type: ${booking?.eventType}`, 25, headerHeight + 58);
+    doc.text(`Date: ${safeFormat(booking?.eventDate, 'PPP')}`, 85, headerHeight + 58);
+    doc.text(`Slot: ${booking?.slot}`, 145, headerHeight + 58);
+    doc.text(`Guests: ${booking?.guestCount}`, 25, headerHeight + 64);
+    
+    // Charges Table
     const tableData = [
-      ['Hall Rent', `Rs. ${booking.hallRent?.toLocaleString()}`],
-      ['Decoration', `Rs. ${booking.decorationCharges?.toLocaleString()}`],
-      ['DJ Charges', `Rs. ${booking.djCharges?.toLocaleString()}`],
-      ['Fireworks', `Rs. ${(Number(booking.fireworkPrice) * Number(booking.fireworkQuantity))?.toLocaleString()}`],
-      ['Catering', `Rs. ${booking.cateringCharges?.toLocaleString()}`],
-      ['Add-ons', `Rs. ${booking.addOnsCharges?.toLocaleString()}`],
+      ['Hall Rent', `Rs. ${booking?.hallRent?.toLocaleString()}`],
+      ['Decoration', `Rs. ${booking?.decorationCharges?.toLocaleString()}`],
+      ['DJ Charges', `Rs. ${booking?.djCharges?.toLocaleString()}`],
+      ['Fireworks', `Rs. ${(Number(booking?.fireworkPrice || 0) * Number(booking?.fireworkQuantity || 0))?.toLocaleString()}`],
+      ['Catering', `Rs. ${booking?.cateringCharges?.toLocaleString()}`],
+      ['Add-ons', `Rs. ${booking?.addOnsCharges?.toLocaleString()}`],
     ];
     
     autoTable(doc, {
-      startY: headerHeight + 70,
+      startY: headerHeight + 75,
       head: [['Description', 'Amount']],
       body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: [79, 70, 229] },
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 10, cellPadding: 5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 20, right: 20, bottom: 40 }
     });
     
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
     
-    // Totals
+    // Check if we need a new page for Totals
+    if (finalY + 45 > pageHeight - 30) {
+      doc.addPage();
+      finalY = 30;
+    }
+
+    // Totals Box
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(pageWidth - 85, finalY, 65, 35, 2, 2, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(pageWidth - 85, finalY, 65, 35, 2, 2, 'S');
+
     doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
     const subtotal = (
-      Number(booking.hallRent) + 
-      Number(booking.decorationCharges) + 
-      Number(booking.cateringCharges) + 
-      Number(booking.djCharges) + 
-      (Number(booking.fireworkPrice) * Number(booking.fireworkQuantity))
+      Number(booking?.hallRent || 0) + 
+      Number(booking?.decorationCharges || 0) + 
+      Number(booking?.cateringCharges || 0) + 
+      Number(booking?.djCharges || 0) + 
+      (Number(booking?.fireworkPrice || 0) * Number(booking?.fireworkQuantity || 0))
     );
-    doc.text(`Subtotal: Rs. ${subtotal.toLocaleString()}`, pageWidth - 15, finalY, { align: 'right' });
-    doc.text(`Add-ons: Rs. ${booking.addOnsCharges?.toLocaleString()}`, pageWidth - 15, finalY + 5, { align: 'right' });
-    doc.text(`Discount: Rs. ${booking.discount?.toLocaleString()}`, pageWidth - 15, finalY + 10, { align: 'right' });
-    doc.text(`Tax: Rs. ${booking.tax?.toLocaleString()}`, pageWidth - 15, finalY + 15, { align: 'right' });
     
-    doc.setFontSize(14);
-    doc.setTextColor(79, 70, 229);
-    doc.text(`Grand Total: Rs. ${booking.grandTotal?.toLocaleString()}`, pageWidth - 15, finalY + 25, { align: 'right' });
+    let totalY = finalY + 7;
+    doc.text('Subtotal:', pageWidth - 80, totalY);
+    doc.text(`Rs. ${subtotal.toLocaleString()}`, pageWidth - 25, totalY, { align: 'right' });
     
-    // Payments
+    totalY += 6;
+    doc.text('Add-ons:', pageWidth - 80, totalY);
+    doc.text(`Rs. ${booking?.addOnsCharges?.toLocaleString() || 0}`, pageWidth - 25, totalY, { align: 'right' });
+    
+    totalY += 6;
+    doc.text('Discount:', pageWidth - 80, totalY);
+    doc.text(`Rs. ${booking?.discount?.toLocaleString() || 0}`, pageWidth - 25, totalY, { align: 'right' });
+    
+    totalY += 6;
+    doc.text('Tax:', pageWidth - 80, totalY);
+    doc.text(`Rs. ${booking?.tax?.toLocaleString() || 0}`, pageWidth - 25, totalY, { align: 'right' });
+    
+    totalY += 7;
     doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(79, 70, 229);
+    doc.text('Grand Total:', pageWidth - 80, totalY);
+    doc.text(`Rs. ${booking?.grandTotal?.toLocaleString()}`, pageWidth - 25, totalY, { align: 'right' });
+    
+    finalY += 45;
+
+    // Check if we need a new page for Payment History
+    if (finalY + 40 > pageHeight - 30) {
+      doc.addPage();
+      finalY = 30;
+    }
+
+    // Payments Table
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
-    doc.text('Payment History:', 15, finalY + 35);
+    doc.text('Payment History:', 20, finalY);
     
     const paymentData = payments.map((p: any) => [
       p.type,
@@ -355,20 +703,49 @@ const BookingDetail = () => {
     ]);
     
     autoTable(doc, {
-      startY: finalY + 40,
+      startY: finalY + 5,
       head: [['Type', 'Due Date', 'Status', 'Amount']],
       body: paymentData,
       theme: 'grid',
-      headStyles: { fillColor: [100, 116, 139] },
+      headStyles: { fillColor: [100, 116, 139], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 4 },
+      margin: { left: 20, right: 20, bottom: 40 }
     });
     
-    // Footer
+    // Status Stamp
+    if (booking?.paymentStatus === 'Fully Paid') {
+      doc.setPage(1); // Usually stamp is on the first page
+      doc.setFontSize(40);
+      doc.setTextColor(34, 197, 94); // Emerald-500
+      doc.setGState(new (doc as any).GState({opacity: 0.2}));
+      doc.text('PAID', pageWidth / 2, pageHeight / 2, { align: 'center', angle: -45 });
+      doc.setGState(new (doc as any).GState({opacity: 1}));
+    } else if (booking?.paymentStatus === 'Partial Paid') {
+      doc.setPage(1);
+      doc.setFontSize(40);
+      doc.setTextColor(245, 158, 11); // Amber-500
+      doc.setGState(new (doc as any).GState({opacity: 0.2}));
+      doc.text('PARTIAL PAID', pageWidth / 2, pageHeight / 2, { align: 'center', angle: -45 });
+      doc.setGState(new (doc as any).GState({opacity: 1}));
+    }
+    
+    // Footer & Borders on ALL pages
     const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
-      doc.setFontSize(8);
+      
+      // Decorative border
+      doc.setDrawColor(79, 70, 229); // Indigo-600
+      doc.setLineWidth(1);
+      doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+      doc.setLineWidth(0.3);
+      doc.rect(12, 12, pageWidth - 24, pageHeight - 24);
+
+      // Footer Text
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
       doc.setTextColor(148, 163, 184);
-      doc.text('Thank you for choosing us!', pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+      doc.text('Thank you for your business!', pageWidth / 2, pageHeight - 15, { align: 'center' });
     }
     
     // Open in PDF viewer (new tab)
@@ -387,32 +764,28 @@ const BookingDetail = () => {
 
   const generateContractTemplate = () => {
     const template = `
-CONTRACT AGREEMENT - #${booking.bookingNumber}
---------------------------------------------------
-DATE: ${format(new Date(), 'PPP')}
+This agreement is made on ${format(new Date(), 'PPP')} between ${booking.branchName} (hereinafter referred to as "The Venue") and ${booking.customerName} (hereinafter referred to as "The Client").
 
-BETWEEN:
-${booking.branchName} (The Venue)
-AND
-${booking.customerName} (The Client)
+1. EVENT DETAILS
+- Event Type: ${booking.eventType}
+- Event Date: ${safeFormat(booking.eventDate, 'PPP')}
+- Time Slot: ${booking.slot}
+- Hall/Venue: ${booking.hallName}
+- Expected Guests: ${booking.guestCount}
 
-EVENT DETAILS:
-Event Type: ${booking.eventType}
-Event Date: ${safeFormat(booking.eventDate, 'PPP')}
-Slot: ${booking.slot}
-Venue: ${booking.hallName}
-Guest Count: ${booking.guestCount}
+2. FINANCIAL ARRANGEMENTS
+- Grand Total: Rs. ${booking.grandTotal?.toLocaleString()}
+- Advance Paid: Rs. ${payments.find((p: any) => p.type === 'Advance')?.amount?.toLocaleString() || 0}
+- The Client agrees to pay the remaining balance as per the agreed payment plan. All payments must be cleared before the event date unless otherwise specified.
 
-FINANCIALS:
-Grand Total: Rs. ${booking.grandTotal?.toLocaleString()}
-Advance Paid: Rs. ${payments.find((p: any) => p.type === 'Advance')?.amount?.toLocaleString() || 0}
+3. TERMS & CONDITIONS
+- Cancellation Policy: Cancellations must be made at least 30 days prior to the event date to be eligible for any refund. Advance payments are generally non-refundable.
+- Liability: The Venue is not responsible for any loss of personal belongings or valuables during the event.
+- Damages: The Client will be held responsible for any damage to the venue property caused by their guests or vendors.
+- Outside Vendors: Use of outside caterers or decorators must be approved by The Venue management in advance.
 
-TERMS & CONDITIONS:
-1. The client agrees to pay the remaining balance as per the agreed payment plan.
-2. Cancellation must be made at least 30 days prior to the event date.
-3. The venue is not responsible for any loss of personal belongings.
-...
-    `;
+By signing below, both parties agree to the terms and conditions outlined in this contract.
+    `.trim();
     setContractContent(template);
     setIsContractEditorOpen(true);
   };
@@ -428,7 +801,13 @@ TERMS & CONDITIONS:
 
   if (!booking) return <div>Booking not found.</div>;
 
-  const canEdit = booking?.status === 'Pending' || (booking?.status === 'Approved' && booking?.paymentStatus === 'Not Paid');
+  const eventDate = new Date(booking.eventDate);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const isEventPassed = eventDate < today;
+  const isBookingCompleted = isEventPassed && booking.status === 'Approved' && booking.paymentStatus === 'Paid';
+
+  const canEdit = !isBookingCompleted && (booking?.status === 'Pending' || (booking?.status === 'Approved' && booking?.paymentStatus === 'Not Paid'));
 
   return (
     <div className="space-y-8">
@@ -445,12 +824,13 @@ TERMS & CONDITIONS:
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <h1 className="text-xl sm:text-3xl font-bold text-slate-900 truncate">Booking #{booking.bookingNumber}</h1>
               <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border ${
+                isBookingCompleted ? 'bg-blue-50 text-blue-700 border-blue-100' :
                 booking.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                 booking.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
                 booking.status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-100' : 
                 booking.status === 'Cancelled' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-indigo-50 text-indigo-700 border-indigo-100'
               }`}>
-                {booking.status}
+                {isBookingCompleted ? 'Completed' : booking.status}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500">
@@ -525,9 +905,10 @@ TERMS & CONDITIONS:
         <div className="flex gap-6 sm:gap-8 min-w-max">
           {[
             { id: 'details', label: 'Details', icon: <FileText size={18} />, disabled: false },
-            { id: 'payments', label: 'Payments', icon: <CreditCard size={18} />, disabled: booking.status !== 'Approved' },
+            { id: 'follow-ups', label: 'Follow Ups', icon: <ListTodo size={18} />, disabled: false },
+            { id: 'payments', label: 'Payments', icon: <CreditCard size={18} />, disabled: booking.status !== 'Approved' && booking.status !== 'Completed' },
             { id: 'approvals', label: 'Approvals', icon: <MessageSquare size={18} />, disabled: false },
-            { id: 'contract', label: 'Contract', icon: <FileText size={18} />, disabled: booking.status !== 'Approved' },
+            { id: 'contract', label: 'Contract', icon: <FileText size={18} />, disabled: booking.status !== 'Approved' && booking.status !== 'Completed' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -698,17 +1079,105 @@ TERMS & CONDITIONS:
             </div>
           )}
 
+          {activeTab === 'follow-ups' && (
+            <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900">Follow Ups</h3>
+                <button 
+                  disabled={isBookingCompleted || booking.status === 'Completed'}
+                  onClick={() => {
+                    setEditingFollowUp(null);
+                    setFollowUpForm({
+                      type: 'Note',
+                      status: 'Pending',
+                      followUpDate: format(new Date(), 'yyyy-MM-dd'),
+                      notes: ''
+                    });
+                    setIsFollowUpModalOpen(true);
+                  }}
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
+                    isBookingCompleted || booking.status === 'Completed' ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                >
+                  <Plus size={16} /> Add Follow Up
+                </button>
+              </div>
+              <div className="space-y-3 sm:space-y-4">
+                {followUps.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                    <ListTodo size={48} className="mx-auto mb-4 text-slate-300" />
+                    <p className="text-slate-500 font-medium">No follow ups recorded yet.</p>
+                  </div>
+                ) : (
+                  followUps.map((followUp: any) => (
+                    <div key={followUp.id} className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${followUp.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : followUp.status === 'Cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-600'}`}>
+                          <MessageSquare size={20} className="sm:w-6 sm:h-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${followUp.type === 'Call' ? 'bg-blue-50 text-blue-700' : followUp.type === 'Meeting' ? 'bg-purple-50 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
+                              {followUp.type}
+                            </span>
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${followUp.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : followUp.status === 'Cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700'}`}>
+                              {followUp.status}
+                            </span>
+                          </div>
+                          <p className="text-slate-700 text-sm sm:text-base mb-2">{followUp.notes}</p>
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                            <span className="flex items-center gap-1"><Calendar size={12} /> {format(new Date(followUp.followUpDate), 'MMM dd, yyyy')}</span>
+                            <span className="flex items-center gap-1"><User size={12} /> {followUp.userName || 'System'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0">
+                        <button 
+                          disabled={isBookingCompleted || booking.status === 'Completed'}
+                          onClick={() => {
+                            setEditingFollowUp(followUp);
+                            setFollowUpForm({
+                              type: followUp.type,
+                              status: followUp.status,
+                              followUpDate: format(new Date(followUp.followUpDate), 'yyyy-MM-dd'),
+                              notes: followUp.notes
+                            });
+                            setIsFollowUpModalOpen(true);
+                          }}
+                          className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                            isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                          }`}
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          disabled={isBookingCompleted || booking.status === 'Completed'}
+                          onClick={() => handleDeleteFollowUp(followUp.id)}
+                          className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                            isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                          }`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'payments' && (
             <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-900">Payment Schedule</h3>
                 <button 
                   onClick={() => setIsPaymentModalOpen(true)}
-                  disabled={booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected'}
+                  disabled={isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected'}
                   className={`font-bold text-sm flex items-center gap-1 hover:underline ${
-                    (booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected') ? 'text-slate-400 cursor-not-allowed' : 'text-indigo-600'
+                    (isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected') ? 'text-slate-400 cursor-not-allowed' : 'text-indigo-600'
                   }`}
-                  title={booking.status !== 'Approved' ? "Booking must be Approved to add payments" : ""}
+                  title={isBookingCompleted || booking.status === 'Completed' ? "Booking is completed" : (booking.status !== 'Approved' && booking.status !== 'Completed') ? "Booking must be Approved to add payments" : ""}
                 >
                   <Plus size={16} /> Add
                 </button>
@@ -747,9 +1216,9 @@ TERMS & CONDITIONS:
                                 await fetch(`/api/bookings/${id}/payments/${payment.id}/pay`, { method: 'POST' });
                                 fetchData();
                               }}
-                              disabled={booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected'}
+                              disabled={isBookingCompleted || booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected'}
                               className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
-                                (booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected')
+                                (isBookingCompleted || booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected')
                                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                                   : 'bg-indigo-600 text-white hover:bg-indigo-700'
                               }`}
@@ -822,13 +1291,13 @@ TERMS & CONDITIONS:
                 {!contract && (
                   <button 
                     onClick={generateContractTemplate}
-                    disabled={booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected'}
+                    disabled={isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected'}
                     className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors w-full sm:w-fit justify-center ${
-                      (booking.status !== 'Approved' || booking.status === 'Cancelled' || booking.status === 'Rejected')
+                      (isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected')
                         ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         : 'bg-indigo-600 text-white hover:bg-indigo-700'
                     }`}
-                    title={booking.status !== 'Approved' ? "Booking must be Approved to generate contract" : ""}
+                    title={isBookingCompleted || booking.status === 'Completed' ? "Booking is completed" : (booking.status !== 'Approved' && booking.status !== 'Completed') ? "Booking must be Approved to generate contract" : ""}
                   >
                     <Plus size={18} />
                     Generate Contract
@@ -849,9 +1318,9 @@ TERMS & CONDITIONS:
                           setContractContent(contract.content);
                           setIsContractEditorOpen(true);
                         }}
-                        disabled={booking.status === 'Cancelled' || booking.status === 'Rejected'}
+                        disabled={isBookingCompleted || booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected'}
                         className={`p-2 rounded-lg transition-colors ${
-                          (booking.status === 'Cancelled' || booking.status === 'Rejected')
+                          (isBookingCompleted || booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected')
                             ? 'text-slate-300 cursor-not-allowed'
                             : 'text-slate-500 hover:bg-white'
                         }`}
@@ -864,7 +1333,11 @@ TERMS & CONDITIONS:
                       >
                         <Printer size={18} />
                       </button>
-                      <button className="p-2 text-slate-500 hover:bg-white rounded-lg transition-colors">
+                      <button 
+                        onClick={() => generateContractPDFFile(contract.content)}
+                        className="p-2 text-slate-500 hover:bg-white rounded-lg transition-colors"
+                        title="Download PDF"
+                      >
                         <Download size={18} />
                       </button>
                     </div>
@@ -931,14 +1404,14 @@ TERMS & CONDITIONS:
               >
                 <FileText size={16} className="sm:w-4.5 sm:h-4.5" /> Print Invoice
               </button>
-              <button className="w-full py-2.5 sm:py-3 px-4 bg-white/10 hover:bg-white/20 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-3">
+              {/* <button className="w-full py-2.5 sm:py-3 px-4 bg-white/10 hover:bg-white/20 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-3">
                 <Upload size={16} className="sm:w-4.5 sm:h-4.5" /> Upload Documents
-              </button>
+              </button> */}
               <button 
                 onClick={handleCancelBooking}
-                disabled={booking.status === 'Cancelled' || booking.status === 'Rejected'}
+                disabled={isBookingCompleted || booking.status === 'Cancelled' || booking.status === 'Rejected'}
                 className={`w-full py-2.5 sm:py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-3 ${
-                  (booking.status === 'Cancelled' || booking.status === 'Rejected')
+                  (isBookingCompleted || booking.status === 'Cancelled' || booking.status === 'Rejected')
                     ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
                     : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
                 }`}
@@ -1056,31 +1529,134 @@ TERMS & CONDITIONS:
         )}
 
         {printType === 'contract' && contract && (
-          <div className="space-y-8">
-            <div className="text-center border-b-2 border-slate-900 pb-8">
-              <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Legal Contract Agreement</h1>
-              <p className="text-slate-500 font-bold mt-2">Booking Reference: #{booking.bookingNumber}</p>
+          <div className="border-2 border-indigo-600 p-8 min-h-[1000px] relative" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+            {/* Header matching PDF */}
+            <div className="bg-indigo-600 p-6 rounded-t-lg flex items-center justify-between -mt-4 -mx-4 mb-8">
+              <div className="flex items-center gap-4">
+                {booking.tenantLogoUrl && (
+                  <div className="bg-white p-1 rounded-lg">
+                    <img src={booking.tenantLogoUrl} alt="Logo" className="w-12 h-12 object-contain" />
+                  </div>
+                )}
+                <h1 className="text-2xl font-bold text-white">{booking.tenantName || 'Event Management'}</h1>
+              </div>
+              <h2 className="text-xl text-white font-medium uppercase tracking-wider">Contract Agreement</h2>
             </div>
-            <div className="p-8 font-serif text-sm leading-relaxed whitespace-pre-wrap text-slate-800 bg-slate-50 rounded-2xl border border-slate-200">
+
+            {/* Sub-header */}
+            <div className="flex justify-between items-center mb-4 px-2">
+              <div className="font-bold text-slate-900 text-sm">
+                Booking Reference: #{booking.bookingNumber}
+              </div>
+              <div className="font-bold text-slate-900 text-sm">
+                Date: {format(new Date(), 'PPP')}
+              </div>
+            </div>
+            
+            <div className="border-b-2 border-slate-200 mb-8 mx-2"></div>
+
+            {/* Content */}
+            <div className="px-2 font-serif text-[15px] leading-relaxed whitespace-pre-wrap text-slate-700">
               {contract.content}
             </div>
-            <div className="mt-24 grid grid-cols-2 gap-24">
-              <div className="space-y-12">
-                <div className="border-t border-slate-900 pt-4">
-                  <p className="font-black text-slate-900 uppercase tracking-widest text-xs">Client Signature</p>
-                  <p className="text-slate-500 text-xs mt-1">{booking.customerName}</p>
+
+            {/* Signatures */}
+            <div className="grid grid-cols-2 gap-32 px-8 mt-32 mb-12 w-full">
+              <div className="text-center">
+                <div className="border-t-2 border-slate-900 pt-2">
+                  <p className="font-bold text-slate-900 text-sm">Client Signature</p>
+                  <p className="text-slate-500 text-sm mt-1">{booking.customerName}</p>
                 </div>
               </div>
-              <div className="space-y-12">
-                <div className="border-t border-slate-900 pt-4">
-                  <p className="font-black text-slate-900 uppercase tracking-widest text-xs">Venue Representative</p>
-                  <p className="text-slate-500 text-xs mt-1">{booking.branchName}</p>
+              <div className="text-center">
+                <div className="border-t-2 border-slate-900 pt-2">
+                  <p className="font-bold text-slate-900 text-sm">Authorized Signature</p>
+                  <p className="text-slate-500 text-sm mt-1">{booking.branchName || 'The Venue'}</p>
                 </div>
               </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="mt-8 px-2 text-xs text-slate-400 italic text-center">
+              {booking.branchName || 'Event Management System'}
             </div>
           </div>
         )}
       </div>
+
+      {/* Follow Up Modal */}
+      {isFollowUpModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">{editingFollowUp ? 'Edit Follow Up' : 'Add Follow Up'}</h2>
+              <button onClick={() => setIsFollowUpModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <XCircle size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Type</label>
+                <select 
+                  value={followUpForm.type}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, type: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="Note">Note</option>
+                  <option value="Call">Call</option>
+                  <option value="Meeting">Meeting</option>
+                  <option value="Email">Email</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Status</label>
+                <select 
+                  value={followUpForm.status}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, status: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Follow Up Date</label>
+                <input 
+                  type="date"
+                  value={followUpForm.followUpDate}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, followUpDate: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Notes</label>
+                <textarea 
+                  value={followUpForm.notes}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, notes: e.target.value })}
+                  rows={4}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                  placeholder="Enter follow up details..."
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 flex gap-3">
+              <button 
+                onClick={() => setIsFollowUpModalOpen(false)}
+                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveFollowUp}
+                className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {isPaymentModalOpen && (

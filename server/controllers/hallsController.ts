@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import {
+
   createHall as createHallModel,
   deleteHall as deleteHallModel,
   getHalls,
@@ -25,7 +26,7 @@ export async function getHall(req: Request, res: Response) {
 }
 
 export async function createHall(req: Request, res: Response) {
-  const { tenantId, branchId, hallManagerId, hallName, capacity, isDecorationAllowedExternally } = req.body;
+  const { tenantId, branchId, hallManagerId, hallName, capacity, isDecorationAllowedExternally, createdBy } = req.body;
   try {
     const id = await createHallModel({
       tenantId,
@@ -34,6 +35,7 @@ export async function createHall(req: Request, res: Response) {
       hallName,
       capacity,
       isDecorationAllowedExternally: Boolean(isDecorationAllowedExternally),
+      createdBy
     });
     res.json({ id });
   } catch (error: any) {
@@ -43,7 +45,7 @@ export async function createHall(req: Request, res: Response) {
 
 export async function updateHall(req: Request, res: Response) {
   const { id } = req.params;
-  const { branchId, hallManagerId, hallName, capacity, isDecorationAllowedExternally } = req.body;
+  const { branchId, hallManagerId, hallName, capacity, isDecorationAllowedExternally, modifiedBy } = req.body;
   try {
     await updateHallModel(id, {
       branchId,
@@ -51,6 +53,7 @@ export async function updateHall(req: Request, res: Response) {
       hallName,
       capacity,
       isDecorationAllowedExternally: Boolean(isDecorationAllowedExternally),
+      modifiedBy
     });
     res.json({ success: true });
   } catch (error: any) {

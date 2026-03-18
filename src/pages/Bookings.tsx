@@ -1,3 +1,4 @@
+import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Filter, ChevronRight, MoreVertical, CheckCircle2, Clock, XCircle, AlertCircle, Download, FileText, Utensils, Printer } from 'lucide-react';
@@ -5,6 +6,8 @@ import { format } from 'date-fns';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const Bookings = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +45,6 @@ const Bookings = () => {
       case 'Approved': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
       case 'Pending': return 'bg-amber-50 text-amber-700 border-amber-100';
       case 'Rejected': return 'bg-red-50 text-red-700 border-red-100';
-      case 'Revision': return 'bg-indigo-50 text-indigo-700 border-indigo-100';
       default: return 'bg-slate-50 text-slate-700 border-slate-100';
     }
   };
@@ -52,7 +54,6 @@ const Bookings = () => {
       case 'Approved': return <CheckCircle2 size={14} />;
       case 'Pending': return <Clock size={14} />;
       case 'Rejected': return <XCircle size={14} />;
-      case 'Revision': return <AlertCircle size={14} />;
       default: return null;
     }
   };
@@ -73,6 +74,9 @@ const Bookings = () => {
     const term = (searchTerm ?? '').toLowerCase();
     return bookingNumber.includes(term) || customerName.includes(term);
   });
+
+  
+  const paginatedItems = filteredBookings.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-8">
@@ -118,7 +122,7 @@ const Bookings = () => {
             type="text"
             placeholder="Search by Booking ID or Customer Name..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
           />
         </div>
@@ -146,7 +150,6 @@ const Bookings = () => {
             <option value="Pending">Pending</option>
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
-            <option value="Revision">Revision</option>
           </select>
         </div>
       </div>
@@ -186,7 +189,7 @@ const Bookings = () => {
                   </td>
                 </tr>
               ) : (
-                filteredBookings.map((booking: any) => (
+                paginatedItems.map((booking: any) => (
                   <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
@@ -280,7 +283,7 @@ const Bookings = () => {
             <p className="text-slate-500 font-medium">No bookings found.</p>
           </div>
         ) : (
-          filteredBookings.map((booking: any) => (
+          paginatedItems.map((booking: any) => (
             <div 
               key={booking.id}
               onClick={() => navigate(`/bookings/${booking.id}`)}
@@ -348,6 +351,13 @@ const Bookings = () => {
           ))
         )}
       </div>
+    
+      <Pagination 
+        currentPage={currentPage} 
+        totalItems={filteredBookings.length} 
+        itemsPerPage={ITEMS_PER_PAGE} 
+        onPageChange={setCurrentPage} 
+      />
     </div>
   );
 };

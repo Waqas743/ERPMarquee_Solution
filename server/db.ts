@@ -3,24 +3,25 @@ import bcrypt from "bcryptjs";
 
 const SALT_ROUNDS = 10;
 
+//const dbConfig = {
+//   host: process.env.PGHOST || "localhost",
+//   user: process.env.PGUSER || "postgres",
+//   password: process.env.PGPASSWORD || "1234",
+//   database: process.env.PGDATABASE || "ERP_Marquee",
+//   port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+// };
 const dbConfig = {
-  host: process.env.PGHOST || "localhost",
-  user: process.env.PGUSER || "postgres",
-  password: process.env.PGPASSWORD || "1234",
-  database: process.env.PGDATABASE || "ERP_Marquee",
-  port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+  connectionString: process.env.DATABASE_URL || "postgresql://erp_marquee_user:4YIEcNk8rDnxbQxsftJJReH4wj016w8r@dpg-d6u1050gjchc73cnuo50-a.oregon-postgres.render.com/erp_marquee",
+  ssl: {
+    rejectUnauthorized: false,
+  },
 };
-
 const pool = new Pool(dbConfig);
 
 async function ensureDatabase() {
-  const adminPool = new Pool({ ...dbConfig, database: "postgres" });
-  const dbName = dbConfig.database.replace(/[^a-zA-Z0-9_]/g, "");
-  const exists = await adminPool.query("SELECT 1 FROM pg_database WHERE datname = $1", [dbName]);
-  if (exists.rowCount === 0) {
-    await adminPool.query(`CREATE DATABASE "${dbName}"`);
-  }
-  await adminPool.end();
+  // Database creation is handled by the external provider (Render)
+  // so we skip creating the database programmatically.
+  return;
 }
 
 export async function query<T = any>(text: string, params: any[] = [], client?: PoolClient) {

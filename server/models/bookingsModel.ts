@@ -61,6 +61,7 @@ export async function listBookings(data: {
   status?: string;
   startDate?: string;
   endDate?: string;
+  userId?: string;
 }) {
   let queryText = `
     SELECT 
@@ -87,12 +88,14 @@ export async function listBookings(data: {
       b.fireworkQuantity as "fireworkQuantity",
       b.status as "status",
       b.paymentStatus as "paymentStatus",
+      b.assignedTo as "assignedTo",
       b.createdAt as "createdAt",
       b.modifiedAt as "modifiedAt",
       b.createdBy as "createdBy",
       b.modifiedBy as "modifiedBy",
       cu.fullName as "createdByName",
       mu.fullName as "modifiedByName",
+      au.fullName as "assignedToName",
       c.name as "customerName", 
       h.hallName as "hallName", 
       br.name as "branchName"
@@ -101,21 +104,26 @@ export async function listBookings(data: {
     JOIN Halls h ON b.hallId::text = h.id::text
     JOIN Branches br ON b.branchId::text = br.id::text
     LEFT JOIN TenantUsers cu ON b.createdBy::text = cu.id::text
-      LEFT JOIN TenantUsers mu ON b.modifiedBy::text = mu.id::text
-    WHERE b.tenantId = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
+    LEFT JOIN TenantUsers mu ON b.modifiedBy::text = mu.id::text
+    LEFT JOIN TenantUsers au ON b.assignedTo::text = au.id::text
+    WHERE b.tenantId = $1::uuid AND COALESCE(b.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [data.tenantId];
   if (data.branchId) {
-    queryText += ` AND b.branchId = $${params.length + 1}`;
     params.push(data.branchId);
+    queryText += ` AND b.branchId = $${params.length}::uuid`;
+  }
+  if (data.userId) {
+    params.push(data.userId);
+    queryText += ` AND (b.createdBy = $${params.length}::uuid OR b.assignedTo = $${params.length}::uuid)`;
   }
   if (data.status) {
-    queryText += ` AND b.status = $${params.length + 1}`;
     params.push(data.status);
+    queryText += ` AND b.status = $${params.length}`;
   }
   if (data.startDate && data.endDate) {
-    queryText += ` AND b.eventDate BETWEEN $${params.length + 1} AND $${params.length + 2}`;
     params.push(data.startDate, data.endDate);
+    queryText += ` AND b.eventDate BETWEEN $${params.length - 1} AND $${params.length}`;
   }
   queryText += " ORDER BY b.createdAt DESC";
   const result = await query(queryText, params);
@@ -148,12 +156,14 @@ export async function getBookingById(id: string) {
       b.fireworkQuantity as "fireworkQuantity",
       b.status as "status",
       b.paymentStatus as "paymentStatus",
+      b.assignedTo as "assignedTo",
       b.createdAt as "createdAt",
       b.modifiedAt as "modifiedAt",
       b.createdBy as "createdBy",
       b.modifiedBy as "modifiedBy",
       cu.fullName as "createdByName",
       mu.fullName as "modifiedByName",
+      au.fullName as "assignedToName",
       c.name as "customerName", 
       c.phone as "customerPhone", 
       c.email as "customerEmail", 
@@ -171,8 +181,9 @@ export async function getBookingById(id: string) {
     JOIN Tenants t ON b.tenantId::text = t.id::text
     LEFT JOIN TenantUsers cu ON b.createdBy::text = cu.id::text
     LEFT JOIN TenantUsers mu ON b.modifiedBy::text = mu.id::text
+    LEFT JOIN TenantUsers au ON b.assignedTo::text = au.id::text
     LEFT JOIN EventPackages ep ON b.packageId::text = ep.id::text
-    WHERE b.id = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
+    WHERE b.id = $1::uuid AND COALESCE(b.isDeleted, FALSE) = FALSE
   `, [id]);
   const booking = bookingResult.rows[0] as any;
   if (booking) {
@@ -236,7 +247,7 @@ export async function listBookingMenuItems(id: string) {
         FROM BookingMenuItems bmi
         JOIN MenuItems mi ON bmi.menuItemId::text = mi.id::text
         JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text
-        WHERE bmi.bookingId = $1 AND COALESCE(bmi.isDeleted, FALSE) = FALSE
+        WHERE bmi.bookingId = $1::uuid AND COALESCE(bmi.isDeleted, FALSE) = FALSE
       `,
       [id]
     )
@@ -259,7 +270,7 @@ export async function listBookingAddOns(id: string) {
           ao.name as "addOnName"
         FROM BookingAddOns bao
         JOIN AddOns ao ON bao.addOnId::text = ao.id::text
-        WHERE bao.bookingId = $1 AND COALESCE(bao.isDeleted, FALSE) = FALSE
+        WHERE bao.bookingId = $1::uuid AND COALESCE(bao.isDeleted, FALSE) = FALSE
       `,
       [id]
     )
@@ -291,14 +302,14 @@ export async function createBooking(data: {
   selectedAddOns?: Array<{ id: string; price: number }>;
   createdBy?: string;
 }) {
-  const tenant = await query("SELECT id FROM Tenants WHERE id = $1", [data.tenantId]);
+  const tenant = await query("SELECT id FROM Tenants WHERE id = $1::uuid", [data.tenantId]);
   if (tenant.rowCount === 0) {
     throw new Error("Invalid tenantId");
   }
   const existingBooking = await query(
     `
       SELECT bookingNumber as "bookingNumber" FROM Bookings 
-      WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND COALESCE(isDeleted, FALSE) = FALSE
+      WHERE hallId = $1::uuid AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND COALESCE(isDeleted, FALSE) = FALSE
     `,
     [data.hallId, data.eventDate, data.slot]
   );
@@ -459,14 +470,14 @@ export async function updateBooking(id: string, data: {
   const existingBooking = await query(
     `
       SELECT bookingNumber as "bookingNumber" FROM Bookings 
-      WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND id != $4 AND COALESCE(isDeleted, FALSE) = FALSE
+      WHERE hallId = $1::uuid AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND id != $4::uuid AND COALESCE(isDeleted, FALSE) = FALSE
     `,
     [data.hallId, data.eventDate, data.slot, id]
   );
   if (existingBooking.rowCount > 0) {
     throw new Error(`This hall is already booked (Approved/Confirmed) for ${data.eventDate} (${data.slot} slot). Booking Number: ${existingBooking.rows[0].bookingNumber}`);
   }
-  const booking = (await query("SELECT status, paymentStatus, bookingNumber FROM Bookings WHERE id = $1", [id])).rows[0] as any;
+  const booking = (await query("SELECT status, paymentStatus, bookingNumber FROM Bookings WHERE id = $1::uuid", [id])).rows[0] as any;
   if (booking && booking.paymentstatus?.toLowerCase() !== 'unpaid' && booking.paymentstatus?.toLowerCase() !== 'not paid') {
     throw new Error("Cannot edit booking as payment has already been started (Partial or Full).");
   }
@@ -511,7 +522,7 @@ export async function updateBooking(id: string, data: {
           hallRent = $9, decorationCharges = $10, cateringCharges = $11, addOnsCharges = $12, discount = $13, tax = $14, grandTotal = $15,
           djCharges = $16, fireworkPrice = $17, fireworkQuantity = $18,
           modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $19${statusUpdateStr}
-        WHERE id = $20
+        WHERE id = $20::uuid
       `,
       updateParams,
       client
@@ -521,7 +532,7 @@ export async function updateBooking(id: string, data: {
         UPDATE HallBookingCalendar SET 
           hallId = $1, eventDate = $2, startTime = $3, endTime = $4,
           modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5
-        WHERE bookingId = $6 AND COALESCE(isDeleted, FALSE) = FALSE
+        WHERE bookingId = $6::uuid AND COALESCE(isDeleted, FALSE) = FALSE
       `,
       [
         data.hallId,
@@ -548,7 +559,7 @@ export async function updateBooking(id: string, data: {
     }
 
     // Always recalculate payment status in case grandTotal changed or new payments were added
-    const paymentsRes = await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id], client);
+    const paymentsRes = await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id], client);
     const totalPaid = paymentsRes.rows.filter(p => p.status === "Paid").reduce((sum, p) => sum + Number(p.amount), 0);
     
     let paymentStatus = "Not Paid";
@@ -567,14 +578,14 @@ export async function updateBooking(id: string, data: {
     }
 
     await query(
-      "UPDATE Bookings SET paymentStatus = $1, status = $2 WHERE id = $3",
+      "UPDATE Bookings SET paymentStatus = $1, status = $2 WHERE id = $3::uuid",
       [paymentStatus, status, id],
       client
     );
 
     if (data.menuItems && Array.isArray(data.menuItems)) {
       await query(
-        "UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE",
+        "UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE",
         [id, data.modifiedBy || null],
         client
       );
@@ -591,7 +602,7 @@ export async function updateBooking(id: string, data: {
     }
     if (data.selectedAddOns && Array.isArray(data.selectedAddOns)) {
       await query(
-        "UPDATE BookingAddOns SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE",
+        "UPDATE BookingAddOns SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE",
         [id, data.modifiedBy || null],
         client
       );
@@ -627,14 +638,14 @@ export async function updateBookingStatus(id: string, data: {
   comments?: string;
 }) {
   await withTransaction(async (client) => {
-    const booking = (await query('SELECT status, paymentStatus as "paymentStatus", hallId as "hallId", eventDate as "eventDate", slot as "slot", bookingNumber as "bookingNumber" FROM Bookings WHERE id = $1', [id], client)).rows[0] as any;
+    const booking = (await query('SELECT status, paymentStatus as "paymentStatus", hallId as "hallId", eventDate as "eventDate", slot as "slot", bookingNumber as "bookingNumber" FROM Bookings WHERE id = $1::uuid', [id], client)).rows[0] as any;
     
     // Check for conflicts if approving
     if (['Approved', 'Confirmed'].includes(data.status)) {
       const existingApproved = await query(
         `
           SELECT bookingNumber as "bookingNumber" FROM Bookings 
-          WHERE hallId = $1 AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND id != $4 AND COALESCE(isDeleted, FALSE) = FALSE
+          WHERE hallId = $1::uuid AND eventDate = $2 AND slot = $3 AND status IN ('Approved', 'Confirmed') AND id != $4::uuid AND COALESCE(isDeleted, FALSE) = FALSE
         `,
         [booking.hallId, booking.eventDate, booking.slot, id],
         client
@@ -653,7 +664,7 @@ export async function updateBookingStatus(id: string, data: {
         `
           SELECT COUNT(*) as count 
           FROM BookingPayments 
-          WHERE bookingId = $1 AND type = 'Advance' AND status = 'Paid' AND COALESCE(isDeleted, FALSE) = FALSE
+          WHERE bookingId = $1::uuid AND type = 'Advance' AND status = 'Paid' AND COALESCE(isDeleted, FALSE) = FALSE
         `,
         [id],
         client
@@ -663,7 +674,7 @@ export async function updateBookingStatus(id: string, data: {
       }
     }
     await query(
-      "UPDATE Bookings SET status = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3",
+      "UPDATE Bookings SET status = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3::uuid",
       [data.status, data.userId, id],
       client
     );
@@ -705,7 +716,7 @@ export async function listBookingPayments(id: string) {
       createdBy as "createdBy",
       modifiedBy as "modifiedBy"
     FROM BookingPayments 
-    WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE
+    WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE
   `, [id])).rows;
 }
 
@@ -718,10 +729,10 @@ export async function createBookingPayment(id: string, data: {
 }) {
   await withTransaction(async (client) => {
     const existingPayments = (
-      await query("SELECT amount FROM BookingPayments WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
+      await query("SELECT amount FROM BookingPayments WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
     ).rows as any[];
     const totalPlanned = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    let booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1', [id], client)).rows[0] as any;
+    let booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1::uuid', [id], client)).rows[0] as any;
     if (booking && totalPlanned + Number(data.amount) > Number(booking.grandTotal) + 0.01) {
       throw new Error(`Payment amount exceeds remaining balance. Remaining: Rs. ${(Number(booking.grandTotal) - totalPlanned).toLocaleString()}`);
     }
@@ -729,15 +740,15 @@ export async function createBookingPayment(id: string, data: {
     await query(
       `
         INSERT INTO BookingPayments (bookingId, type, amount, dueDate, status, paidDate, createdBy)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
       `,
       [id, data.type, data.amount, data.dueDate, data.status || "Pending", paidDate, data.createdBy || null],
       client
     );
     const payments = (
-      await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
+      await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
     ).rows as any[];
-    booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1', [id], client)).rows[0] as any;
+    booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1::uuid', [id], client)).rows[0] as any;
     if (booking) {
       const totalPaid = payments.filter((p) => p.status === "Paid").reduce((sum, p) => sum + Number(p.amount), 0);
       let paymentStatus = "Not Paid";
@@ -747,7 +758,7 @@ export async function createBookingPayment(id: string, data: {
         paymentStatus = "Partial Paid";
       }
       await query(
-        "UPDATE Bookings SET paymentStatus = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3",
+        "UPDATE Bookings SET paymentStatus = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3::uuid",
         [paymentStatus, data.createdBy || null, id],
         client
       );
@@ -758,14 +769,14 @@ export async function createBookingPayment(id: string, data: {
 export async function payBookingPayment(id: string, paymentId: string, paidDate?: string, modifiedBy?: string) {
   await withTransaction(async (client) => {
     await query(
-      "UPDATE BookingPayments SET status = 'Paid', paidDate = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $3 WHERE id = $2",
+      "UPDATE BookingPayments SET status = 'Paid', paidDate = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $3 WHERE id = $2::uuid",
       [paidDate || new Date().toISOString().split("T")[0], paymentId, modifiedBy || null],
       client
     );
     const payments = (
-      await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
+      await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
     ).rows as any[];
-    const booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1', [id], client)).rows[0] as any;
+    const booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1::uuid', [id], client)).rows[0] as any;
     if (!booking) {
       return;
     }
@@ -777,7 +788,7 @@ export async function payBookingPayment(id: string, paymentId: string, paidDate?
       paymentStatus = "Partial Paid";
     }
     await query(
-      "UPDATE Bookings SET paymentStatus = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3",
+      "UPDATE Bookings SET paymentStatus = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3::uuid",
       [paymentStatus, modifiedBy || null, id],
       client
     );
@@ -785,20 +796,20 @@ export async function payBookingPayment(id: string, paymentId: string, paidDate?
 }
 
 export async function deleteBookingPayment(id: string, paymentId: string, deletedBy?: string) {
-  const payment = (await query("SELECT status FROM BookingPayments WHERE id = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [paymentId])).rows[0] as any;
+  const payment = (await query("SELECT status FROM BookingPayments WHERE id = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [paymentId])).rows[0] as any;
   if (payment && payment.status === "Paid") {
     throw new Error("Paid payments cannot be deleted");
   }
   await withTransaction(async (client) => {
     await query(
-      "UPDATE BookingPayments SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $3 WHERE id = $1 AND bookingId = $2",
+      "UPDATE BookingPayments SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $3 WHERE id = $1::uuid AND bookingId = $2::uuid",
       [paymentId, id, deletedBy || null],
       client
     );
     const payments = (
-      await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
+      await query("SELECT amount, status FROM BookingPayments WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id], client)
     ).rows as any[];
-    const booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1', [id], client)).rows[0] as any;
+    const booking = (await query('SELECT grandTotal as "grandTotal" FROM Bookings WHERE id = $1::uuid', [id], client)).rows[0] as any;
     if (booking) {
       const totalPaid = payments.filter((p) => p.status === "Paid").reduce((sum, p) => sum + Number(p.amount), 0);
       let paymentStatus = "Not Paid";
@@ -808,7 +819,7 @@ export async function deleteBookingPayment(id: string, paymentId: string, delete
         paymentStatus = "Partial Paid";
       }
       await query(
-        "UPDATE Bookings SET paymentStatus = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3",
+        "UPDATE Bookings SET paymentStatus = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3::uuid",
         [paymentStatus, deletedBy || null, id],
         client
       );
@@ -831,26 +842,26 @@ export async function listBookingApprovals(id: string) {
       u.fullName as "userName"
     FROM BookingApprovals a
     JOIN TenantUsers u ON a.userId::text = u.id::text
-    WHERE a.bookingId = $1 AND COALESCE(a.isDeleted, FALSE) = FALSE
+    WHERE a.bookingId = $1::uuid AND COALESCE(a.isDeleted, FALSE) = FALSE
     ORDER BY a.createdAt DESC
   `, [id])).rows;
 }
 
 export async function getBookingContract(id: string) {
   const result = await query(
-    'SELECT id, bookingId as "bookingId", content, createdAt as "createdAt", modifiedAt as "modifiedAt", createdBy as "createdBy", modifiedBy as "modifiedBy" FROM Contracts WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE',
+    'SELECT id, bookingId as "bookingId", content, createdAt as "createdAt", modifiedAt as "modifiedAt", createdBy as "createdBy", modifiedBy as "modifiedBy" FROM Contracts WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE',
     [id]
   );
   return result.rows[0] || null;
 }
 
 export async function upsertBookingContract(id: string, content: string, modifiedBy?: string) {
-  const existing = (await query("SELECT id FROM Contracts WHERE bookingId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id])).rows[0] as any;
+  const existing = (await query("SELECT id FROM Contracts WHERE bookingId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id])).rows[0] as any;
   if (existing) {
-    await query("UPDATE Contracts SET content = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3", [content, modifiedBy || null, existing.id]);
+    await query("UPDATE Contracts SET content = $1, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2 WHERE id = $3::uuid", [content, modifiedBy || null, existing.id]);
     return existing.id;
   }
-  const info = await query("INSERT INTO Contracts (bookingId, content, createdBy) VALUES ($1, $2, $3) RETURNING id", [id, content, modifiedBy || null]);
+  const info = await query("INSERT INTO Contracts (bookingId, content, createdBy) VALUES ($1::uuid, $2, $3) RETURNING id", [id, content, modifiedBy || null]);
   return info.rows[0]?.id;
 }
 
@@ -868,10 +879,22 @@ export async function listBookingFollowUps(bookingId: string) {
       f.modifiedAt as "modifiedAt",
       f.createdBy as "createdBy",
       f.modifiedBy as "modifiedBy",
-      u.fullName as "userName"
+      u.fullName as "userName",
+      COALESCE((
+        SELECT json_agg(json_build_object(
+          'id', c.id,
+          'userId', c.userId,
+          'userName', cu.fullName,
+          'comment', c.comment,
+          'createdAt', c.createdAt
+        ) ORDER BY c.createdAt ASC)
+        FROM FollowUpComments c
+        JOIN TenantUsers cu ON c.userId::text = cu.id::text
+        WHERE c.followUpId = f.id
+      ), '[]'::json) as comments
     FROM BookingFollowUps f
     JOIN TenantUsers u ON f.userId::text = u.id::text
-    WHERE f.bookingId = $1 AND COALESCE(f.isDeleted, FALSE) = FALSE
+    WHERE f.bookingId = $1::uuid AND COALESCE(f.isDeleted, FALSE) = FALSE
     ORDER BY f.createdAt DESC
   `, [bookingId])).rows;
 }
@@ -879,7 +902,7 @@ export async function listBookingFollowUps(bookingId: string) {
 export async function createBookingFollowUp(bookingId: string, data: { userId: string; type: string; status: string; followUpDate: string; notes: string; createdBy?: string }) {
   const result = await query(
     `INSERT INTO BookingFollowUps (bookingId, userId, type, status, followUpDate, notes, createdBy) 
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+     VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7) RETURNING id`,
     [bookingId, data.userId, data.type, data.status, data.followUpDate, data.notes, data.createdBy || null]
   );
   return result.rows[0]?.id;
@@ -887,14 +910,52 @@ export async function createBookingFollowUp(bookingId: string, data: { userId: s
 
 export async function updateBookingFollowUp(id: string, data: { type: string; status: string; followUpDate: string; notes: string; modifiedBy?: string }) {
   await query(
-    `UPDATE BookingFollowUps SET type = $1, status = $2, followUpDate = $3, notes = $4, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5 WHERE id = $6`,
+    `UPDATE BookingFollowUps SET type = $1, status = $2, followUpDate = $3, notes = $4, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5 WHERE id = $6::uuid`,
     [data.type, data.status, data.followUpDate, data.notes, data.modifiedBy || null, id]
   );
 }
 
 export async function deleteBookingFollowUp(id: string, deletedBy?: string) {
   await query(
-    `UPDATE BookingFollowUps SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $1 WHERE id = $2`,
+    `UPDATE BookingFollowUps SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $1 WHERE id = $2::uuid`,
     [deletedBy || null, id]
+  );
+}
+
+export async function getFollowUpById(followUpId: string) {
+  const result = await query(
+    `SELECT 
+      id,
+      bookingId as "bookingId",
+      userId as "userId",
+      type,
+      status,
+      followUpDate as "followUpDate",
+      notes,
+      createdAt as "createdAt",
+      createdBy as "createdBy"
+     FROM BookingFollowUps 
+     WHERE id = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE`,
+    [followUpId]
+  );
+  return result.rows[0];
+}
+
+export async function createFollowUpComment(followUpId: string, data: { userId: string; comment: string }) {
+  const result = await query(
+    `INSERT INTO FollowUpComments (followUpId, userId, comment) VALUES ($1::uuid, $2::uuid, $3) RETURNING id`,
+    [followUpId, data.userId, data.comment]
+  );
+  return result.rows[0]?.id;
+}
+
+export async function assignBooking(bookingId: string, assignedTo: string, modifiedBy: string) {
+  await query(
+    `
+      UPDATE Bookings 
+      SET assignedTo = $1::uuid, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $2
+      WHERE id = $3::uuid AND COALESCE(isDeleted, FALSE) = FALSE
+    `,
+    [assignedTo, modifiedBy, bookingId]
   );
 }

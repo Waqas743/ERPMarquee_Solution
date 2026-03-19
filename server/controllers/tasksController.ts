@@ -8,12 +8,21 @@ import {
 } from "../models/tasksModel";
 
 export async function listTasks(req: Request, res: Response) {
-  const { tenantId, branchId, assignedTo, status } = req.query as {
+  let { tenantId, branchId, assignedTo, status } = req.query as {
     tenantId?: string;
     branchId?: string;
     assignedTo?: string;
     status?: string;
   };
+  const auth = (req as any).auth;
+  
+  if (auth.roleName === "manager" || auth.roleName === "staff") {
+    branchId = auth.branchId;
+  }
+  if (auth.roleName === "staff") {
+    assignedTo = auth.userId;
+  }
+  
   if (!tenantId) return res.status(400).json({ message: "tenantId is required" });
   res.json(await listTasksModel({ tenantId, branchId, assignedTo, status }));
 }

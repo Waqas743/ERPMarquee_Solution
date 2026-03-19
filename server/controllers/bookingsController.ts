@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import {
-
   checkBookingAvailability as checkBookingAvailabilityModel,
   createBooking as createBookingModel,
   createBookingPayment as createBookingPaymentModel,
@@ -20,7 +19,12 @@ import {
   createBookingFollowUp as createBookingFollowUpModel,
   updateBookingFollowUp as updateBookingFollowUpModel,
   deleteBookingFollowUp as deleteBookingFollowUpModel,
+  createFollowUpComment as createFollowUpCommentModel,
+  assignBooking as assignBookingModel,
+  getFollowUpById,
 } from "../models/bookingsModel";
+import { createNotification } from "../models/notificationsModel";
+import { notifyUser, notifyBookingRoom } from "../services/socket";
 
 export async function checkBookingAvailability(req: Request, res: Response) {
   const { hallId, eventDate, slot, excludeId } = req.query as { hallId?: string; eventDate?: string; slot?: string; excludeId?: string };
@@ -40,20 +44,38 @@ export async function checkBookingAvailability(req: Request, res: Response) {
 }
 
 export async function listBookings(req: Request, res: Response) {
-  const { tenantId, branchId, status, startDate, endDate } = req.query as {
+  let { tenantId, branchId, status, startDate, endDate } = req.query as {
     tenantId?: string;
     branchId?: string;
     status?: string;
     startDate?: string;
     endDate?: string;
   };
+  const auth = (req as any).auth;
+  if (auth.roleName === "manager" || auth.roleName === "staff") {
+    branchId = auth.branchId;
+  }
+  const userId = auth.roleName === "staff" ? auth.userId : undefined;
+
   if (!tenantId) return res.status(400).json({ message: "tenantId is required" });
-  res.json(await listBookingsModel({ tenantId, branchId, status, startDate, endDate }));
+  res.json(await listBookingsModel({ tenantId, branchId, status, startDate, endDate, userId }));
 }
 
 export async function getBooking(req: Request, res: Response) {
   const { id } = req.params;
-  res.json(await getBookingById(id));
+  const auth = (req as any).auth;
+  const booking = await getBookingById(id);
+  
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (auth.roleName === "manager" && booking.branchId !== auth.branchId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+  if (auth.roleName === "staff" && booking.createdBy !== auth.userId && booking.assignedTo !== auth.userId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
+  res.json(booking);
 }
 
 export async function createBooking(req: Request, res: Response) {
@@ -87,6 +109,12 @@ export async function createBooking(req: Request, res: Response) {
     if (!branchId) throw new Error("branchId is required");
     if (!hallId) throw new Error("hallId is required");
     if (!customerId) throw new Error("customerId is required");
+
+    const auth = (req as any).auth;
+    if ((auth.roleName === "manager" || auth.roleName === "staff") && branchId !== auth.branchId) {
+      return res.status(403).json({ message: "Cannot create booking for another branch" });
+    }
+
     const { bookingId, bookingNumber } = await createBookingModel({
       tenantId,
       branchId,
@@ -150,6 +178,17 @@ export async function updateBooking(req: Request, res: Response) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    const auth = (req as any).auth;
+    if (auth.roleName === "manager" && existingBooking.branchId !== auth.branchId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (auth.roleName === "staff" && existingBooking.createdBy !== auth.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if ((auth.roleName === "manager" || auth.roleName === "staff") && branchId && branchId !== auth.branchId) {
+      return res.status(403).json({ message: "Cannot move booking to another branch" });
+    }
+
     const canEdit = existingBooking.status === 'Pending' || (existingBooking.status === 'Approved' && existingBooking.paymentStatus === 'Unpaid') || (existingBooking.status === 'Approved' && existingBooking.paymentStatus === 'Not Paid');
     if (!canEdit) {
       return res.status(403).json({ message: "Cannot edit booking. Only Pending bookings or Approved bookings without payments can be edited." });
@@ -188,9 +227,21 @@ export async function updateBooking(req: Request, res: Response) {
 
 export async function updateBookingStatus(req: Request, res: Response) {
   const authUserId = (req as any).auth?.userId;
+  const auth = (req as any).auth;
   const { id } = req.params;
   const { status, userId, comments } = req.body;
   try {
+    const existingBooking = await getBookingById(id);
+    if (!existingBooking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    if (auth.roleName === "manager" && existingBooking.branchId !== auth.branchId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (auth.roleName === "staff" && existingBooking.createdBy !== auth.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     await updateBookingStatusModel(id, { status, userId: authUserId || userId, comments });
     res.json({ success: true });
   } catch (error: any) {
@@ -289,6 +340,7 @@ export async function createBookingFollowUp(req: Request, res: Response) {
       notes,
       createdBy: authUserId,
     });
+    notifyBookingRoom(id, "booking_updated");
     res.json({ id: followUpId });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -297,7 +349,7 @@ export async function createBookingFollowUp(req: Request, res: Response) {
 
 export async function updateBookingFollowUp(req: Request, res: Response) {
   const authUserId = (req as any).auth?.userId;
-  const { followUpId } = req.params;
+  const { id, followUpId } = req.params; // Wait, updateBookingFollowUp route only has /follow-ups/:followUpId ? No, it is /bookings/:id/follow-ups/:followUpId
   const { type, status, followUpDate, notes } = req.body;
   try {
     await updateBookingFollowUpModel(followUpId, {
@@ -307,6 +359,7 @@ export async function updateBookingFollowUp(req: Request, res: Response) {
       notes,
       modifiedBy: authUserId,
     });
+    if (id) notifyBookingRoom(id, "booking_updated");
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -315,9 +368,114 @@ export async function updateBookingFollowUp(req: Request, res: Response) {
 
 export async function deleteBookingFollowUp(req: Request, res: Response) {
   const authUserId = (req as any).auth?.userId;
-  const { followUpId } = req.params;
+  const { id, followUpId } = req.params;
   try {
     await deleteBookingFollowUpModel(followUpId, authUserId);
+    if (id) notifyBookingRoom(id, "booking_updated");
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+}
+
+export async function addFollowUpComment(req: Request, res: Response) {
+  try {
+    const { id, followUpId } = req.params;
+    const { comment } = req.body;
+    const authUserId = (req as any).auth?.userId;
+    const authUserName = (req as any).auth?.fullName || "A user";
+
+    if (!comment) {
+      return res.status(400).json({ message: "Comment is required" });
+    }
+
+    const commentId = await createFollowUpCommentModel(followUpId, {
+      userId: authUserId,
+      comment
+    });
+
+    notifyBookingRoom(id, "booking_updated");
+
+    const followUp = await getFollowUpById(followUpId);
+    const booking = await getBookingById(id);
+    
+    const usersToNotify = new Set<string>();
+
+    if (followUp && followUp.userId !== authUserId) {
+      usersToNotify.add(followUp.userId);
+    }
+    
+    if (booking) {
+      if (booking.assignedTo && booking.assignedTo !== authUserId) {
+        usersToNotify.add(booking.assignedTo);
+      }
+      // Also notify the person who created or last modified (assigned) the booking, usually the director/manager
+      if (booking.modifiedBy && booking.modifiedBy !== authUserId) {
+        usersToNotify.add(booking.modifiedBy);
+      } else if (booking.createdBy && booking.createdBy !== authUserId) {
+        usersToNotify.add(booking.createdBy);
+      }
+    }
+
+    for (const uId of usersToNotify) {
+      const notif = await createNotification({
+        userId: uId,
+        title: "New Comment on Follow-up",
+        message: `${authUserName} commented on a follow-up for booking #${booking?.bookingNumber || id}.`,
+        link: `/bookings/${id}`
+      });
+      notifyUser(uId, "notification", notif);
+    }
+
+    res.status(201).json({ message: "Comment added successfully", commentId });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function assignBooking(req: Request, res: Response) {
+  const auth = (req as any).auth;
+  const authUserId = auth?.userId;
+  const { id } = req.params;
+  const { assignedTo } = req.body;
+  
+  if (auth?.roleName === "staff") {
+    return res.status(403).json({ message: "Staff are not allowed to assign bookings" });
+  }
+  
+  if (!assignedTo) {
+    return res.status(400).json({ message: "assignedTo is required" });
+  }
+
+  try {
+    const existingBooking = await getBookingById(id);
+    await assignBookingModel(id, assignedTo, authUserId);
+    
+    if (existingBooking) {
+      // Create notification for the assignee
+      const notif = await createNotification({
+        userId: assignedTo,
+        title: "New Booking Assigned",
+        message: `You have been assigned to booking #${existingBooking.bookingNumber}`,
+        link: `/bookings/${id}`
+      });
+      // Emit socket event
+      notifyUser(assignedTo, "notification", notif);
+
+      // Create notification for the assigner (the person making the assignment)
+      if (authUserId && authUserId !== assignedTo) {
+        const notifAssigner = await createNotification({
+          userId: authUserId,
+          title: "Booking Assignment Successful",
+          message: `You successfully assigned booking #${existingBooking.bookingNumber}`,
+          link: `/bookings/${id}`
+        });
+        notifyUser(authUserId, "notification", notifAssigner);
+      }
+    }
+
+    notifyBookingRoom(id, "booking_updated");
+
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ message: error.message });

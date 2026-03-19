@@ -91,7 +91,7 @@ export async function createTenant(data: {
           email, address, city, country, logoUrl, domain,
           subscriptionPlanId, subscriptionStartDate, subscriptionEndDate,
           maxBranchesAllowed, maxUsersAllowed, password, username, isSuspended, suspensionReason, isActive, createdBy
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23::uuid)
         RETURNING id
       `,
       [
@@ -132,6 +132,21 @@ export async function createTenant(data: {
     await query("INSERT INTO SystemSettings (tenantId, key, value) VALUES ($1, $2, $3)", [tenantId, "smsNotifications", "false"], client);
     await query("INSERT INTO SystemSettings (tenantId, key, value) VALUES ($1, $2, $3)", [tenantId, "newTenantAlerts", "true"], client);
     await query("INSERT INTO SystemSettings (tenantId, key, value) VALUES ($1, $2, $3)", [tenantId, "subscriptionExpiryAlerts", "true"], client);
+
+    const defaultRoles = [
+      { name: "Admin", desc: "Full access administrator" },
+      { name: "Director", desc: "Director level access" },
+      { name: "Manager", desc: "Manager level access" },
+      { name: "Staff", desc: "General staff access" }
+    ];
+
+    for (const dr of defaultRoles) {
+      await query(
+        "INSERT INTO Roles (tenantId, name, description, isSystem) VALUES ($1, $2, $3, TRUE)",
+        [tenantId, dr.name, dr.desc],
+        client
+      );
+    }
 
     await query(
       `

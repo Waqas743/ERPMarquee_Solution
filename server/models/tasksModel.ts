@@ -25,15 +25,15 @@ export async function listTasks(data: { tenantId: string; branchId?: string; ass
     LEFT JOIN Branches b ON t.branchId::text = b.id::text
     LEFT JOIN TenantUsers cb ON t.createdBy::text = cb.id::text
     LEFT JOIN TenantUsers mb ON t.modifiedBy::text = mb.id::text
-    WHERE t.tenantId = $1 AND COALESCE(t.isDeleted, FALSE) = FALSE
+    WHERE t.tenantId = $1::uuid AND COALESCE(t.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [data.tenantId];
   if (data.branchId) {
-    queryText += ` AND t.branchId = $${params.length + 1}`;
+    queryText += ` AND t.branchId = $${params.length + 1}::uuid`;
     params.push(data.branchId);
   }
   if (data.assignedTo) {
-    queryText += ` AND t.assignedTo = $${params.length + 1}`;
+    queryText += ` AND t.assignedTo = $${params.length + 1}::uuid`;
     params.push(data.assignedTo);
   }
   if (data.status) {
@@ -58,7 +58,7 @@ export async function createTask(data: {
   const result = await query(
     `
       INSERT INTO Tasks (tenantId, branchId, title, description, status, priority, assignedTo, dueDate, createdBy)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid, $8, $9::uuid)
       RETURNING id
     `,
     [
@@ -89,9 +89,9 @@ export async function updateTask(id: string, data: {
   await query(
     `
       UPDATE Tasks SET
-        branchId = $1, title = $2, description = $3, status = $4, priority = $5, assignedTo = $6, dueDate = $7,
-        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $8
-      WHERE id = $9
+        branchId = $1::uuid, title = $2, description = $3, status = $4, priority = $5, assignedTo = $6::uuid, dueDate = $7,
+        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $8::uuid
+      WHERE id = $9::uuid
     `,
     [
       data.branchId || null,
@@ -108,5 +108,5 @@ export async function updateTask(id: string, data: {
 }
 
 export async function deleteTask(id: string, deletedBy?: string) {
-  await query("UPDATE Tasks SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE id = $1", [id, deletedBy || null]);
+  await query("UPDATE Tasks SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE id = $1::uuid", [id, deletedBy || null]);
 }

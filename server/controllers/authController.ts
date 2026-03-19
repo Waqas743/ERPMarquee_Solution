@@ -13,6 +13,8 @@ export async function login(req: Request, res: Response) {
       {
         userId: result.user.id,
         role: result.user.role,
+        roleName: result.user.roleName,
+        branchId: result.user.branchId,
         tenantId: result.user.tenantId,
       },
       JWT_SECRET,

@@ -1,11 +1,13 @@
 import "dotenv/config";
 import express from "express";
+import { createServer } from "http";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import apiRoutes from "./server/routes";
 import { initDatabase } from "./server/db";
 import { startCronJobs } from "./server/services/cron";
+import { initSocket } from "./server/services/socket";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +16,11 @@ async function startServer() {
   await initDatabase();
   startCronJobs();
   const app = express();
+  const httpServer = createServer(app);
+  
+  // Initialize Socket.io
+  initSocket(httpServer);
+  
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
@@ -33,7 +40,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

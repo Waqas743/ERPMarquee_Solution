@@ -5,16 +5,30 @@ const isValidUUID = (uuid: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 
 export async function listBranches(req: Request, res: Response) {
-  const { tenantId } = req.query as { tenantId?: string };
+  let { tenantId } = req.query as { tenantId?: string };
+  const auth = (req as any).auth;
+  
   if (tenantId && !isValidUUID(tenantId)) {
     return res.status(400).json({ message: "Invalid tenantId format" });
   }
-  res.json(await getBranches(tenantId));
+  
+  let branchId: string | undefined;
+  if (auth.roleName === "manager" || auth.roleName === "staff") {
+    branchId = auth.branchId;
+  }
+  
+  res.json(await getBranches(tenantId, branchId));
 }
 
 export async function getBranch(req: Request, res: Response) {
   const { id } = req.params;
+  const auth = (req as any).auth;
   if (!isValidUUID(id)) return res.status(400).json({ message: "Invalid branch ID format" });
+  
+  if ((auth.roleName === "manager" || auth.roleName === "staff") && id !== auth.branchId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
   const row = await getBranchById(id);
   if (!row) return res.status(404).json({ message: "Branch not found" });       
   res.json(row);
@@ -39,6 +53,12 @@ export async function createBranch(req: Request, res: Response) {
 export async function updateBranch(req: Request, res: Response) {
   const { id } = req.params;
   const { tenantId, name, address, city, phone, email, managerId, isActive } = req.body;
+  const auth = (req as any).auth;
+
+  if ((auth.roleName === "manager" || auth.roleName === "staff") && id !== auth.branchId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
   await updateBranchModel(id, {
     tenantId,
     name,
@@ -48,13 +68,19 @@ export async function updateBranch(req: Request, res: Response) {
     email,
     managerId: managerId || null,
     isActive: Boolean(isActive),
-    modifiedBy: String((req as any).auth?.userId || ""),
+    modifiedBy: String(auth.userId || ""),
   });
   res.json({ success: true });
 }
 
 export async function deleteBranch(req: Request, res: Response) {
   const { id } = req.params;
-  await deleteBranchModel(id, String((req as any).auth?.userId || ""));
+  const auth = (req as any).auth;
+  
+  if ((auth.roleName === "manager" || auth.roleName === "staff") && id !== auth.branchId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
+  await deleteBranchModel(id, String(auth.userId || ""));
   res.json({ success: true });
 }

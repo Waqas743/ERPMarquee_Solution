@@ -360,6 +360,27 @@ export async function initDatabase() {
       FOREIGN KEY (userId) REFERENCES TenantUsers(id)
     );
 
+    CREATE TABLE IF NOT EXISTS FollowUpComments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      followUpId UUID NOT NULL,
+      userId UUID NOT NULL,
+      comment TEXT NOT NULL,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (followUpId) REFERENCES BookingFollowUps(id),
+      FOREIGN KEY (userId) REFERENCES TenantUsers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS Notifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      userId UUID NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      isRead BOOLEAN DEFAULT FALSE,
+      link TEXT,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES TenantUsers(id)
+    );
+
     CREATE TABLE IF NOT EXISTS Tasks (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       tenantId UUID NOT NULL,
@@ -425,6 +446,7 @@ export async function initDatabase() {
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS djCharges DOUBLE PRECISION DEFAULT 0");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS fireworkPrice DOUBLE PRECISION DEFAULT 0");
   await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS fireworkQuantity INTEGER DEFAULT 0");
+  await query("ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS assignedTo UUID");
 
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdBy UUID");
@@ -449,6 +471,7 @@ export async function initDatabase() {
   await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
   await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS deletedBy UUID");
+  await query("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS isSystem BOOLEAN DEFAULT FALSE");
 
   await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
   await query("ALTER TABLE RolePermissions ADD COLUMN IF NOT EXISTS createdBy UUID");
@@ -730,5 +753,33 @@ export async function initDatabase() {
   const adminCount = await query<{ count: string }>("SELECT COUNT(*) as count FROM SuperAdmins");
   if (Number(adminCount.rows[0]?.count || 0) === 0) {
     await query("INSERT INTO SuperAdmins (username, password, fullName) VALUES ($1, $2, $3)", ["admin", defaultPasswordHash, "Super Administrator"]);
+  }
+
+  const tenantsList = await query<{ id: string }>("SELECT id FROM Tenants");
+  for (const t of tenantsList.rows) {
+    const defaultRoles = [
+      { name: "Admin", desc: "Full access administrator" },
+      { name: "Director", desc: "Director level access" },
+      { name: "Manager", desc: "Manager level access" },
+      { name: "Staff", desc: "General staff access" }
+    ];
+
+    for (const dr of defaultRoles) {
+      const exists = await query(
+        "SELECT id FROM Roles WHERE tenantId = $1 AND name = $2",
+        [t.id, dr.name]
+      );
+      if (exists.rowCount === 0) {
+        await query(
+          "INSERT INTO Roles (tenantId, name, description, isSystem) VALUES ($1, $2, $3, TRUE)",
+          [t.id, dr.name, dr.desc]
+        );
+      } else {
+        await query(
+          "UPDATE Roles SET isSystem = TRUE WHERE tenantId = $1 AND name = $2",
+          [t.id, dr.name]
+        );
+      }
+    }
   }
 }

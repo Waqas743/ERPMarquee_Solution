@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, CreditCard, Settings, 
   Building2, LogOut, Shield, Globe, Building, 
-  CalendarCheck, CheckSquare, X, Utensils, Package, PlusCircle
+  CalendarCheck, CheckSquare, X, Utensils, Package, PlusCircle, BarChart3
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +29,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { icon: Utensils, label: 'Menu', path: '/menu', permission: 'menu.view', roles: ['admin'] },
     { icon: Package, label: 'Packages', path: '/packages', permission: 'menu.view', roles: ['admin'] },
     { icon: PlusCircle, label: 'Add-ons', path: '/add-ons', permission: 'menu.view', roles: ['admin'] },
+    { icon: BarChart3, label: 'Reports', path: '/reports', permission: 'dashboard.view', roles: ['admin'] },
     { icon: CheckSquare, label: 'Tasks', path: '/tasks', permission: 'dashboard.view', roles: ['admin'] },
     { icon: CheckSquare, label: 'Approvals', path: '/approvals', permission: 'approvals.view', roles: ['admin'] },
     { icon: Users, label: 'Users', path: '/users', permission: 'users.view', roles: ['admin'] },
@@ -48,7 +49,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     }
     
     // 2. Check permissions (Tenant Admin sees all tenant items, staff needs specific permission)
-    if (user.role === 'admin') {
+    if (user.roleName === 'admin' || (!user.roleName && user.role === 'admin')) {
       return true;
     }
     

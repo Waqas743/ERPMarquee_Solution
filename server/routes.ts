@@ -46,6 +46,8 @@ import {
   createBookingFollowUp,
   updateBookingFollowUp,
   deleteBookingFollowUp,
+  addFollowUpComment,
+  assignBooking,
 } from "./controllers/bookingsController";
 import { listUsers, getUser, createUser, updateUser, deleteUser } from "./controllers/usersController";
 import { getSettings, updateSettings } from "./controllers/settingsController";
@@ -72,6 +74,7 @@ import {
 import { packageRevenueReport, popularItemsReport } from "./controllers/reportsController";
 import { listTasks, createTask, updateTask, deleteTask } from "./controllers/tasksController";
 import { login } from "./controllers/authController";
+import { getNotifications, markAsRead, markAllAsRead } from "./controllers/notificationsController";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,7 +108,13 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
     return res.status(401).json({ success: false, message: "Missing token" });
   }
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    if (payload.roleName) {
+      payload.roleName = payload.roleName.toLowerCase();
+    }
+    if (payload.role) {
+      payload.role = payload.role.toLowerCase();
+    }
     (req as any).auth = payload;
     return next();
   } catch {
@@ -167,6 +176,7 @@ router.get("/bookings", listBookings);
 router.get("/bookings/:id", getBooking);
 router.post("/bookings", createBooking);
 router.put("/bookings/:id", updateBooking);
+router.post("/bookings/:id/assign", assignBooking);
 router.put("/bookings/:id/status", updateBookingStatus);
 router.get("/bookings/:id/payments", listBookingPayments);
 router.post("/bookings/:id/payments", createBookingPayment);
@@ -179,6 +189,7 @@ router.get("/bookings/:id/follow-ups", listBookingFollowUps);
 router.post("/bookings/:id/follow-ups", createBookingFollowUp);
 router.put("/bookings/:id/follow-ups/:followUpId", updateBookingFollowUp);
 router.delete("/bookings/:id/follow-ups/:followUpId", deleteBookingFollowUp);
+router.post("/bookings/:id/follow-ups/:followUpId/comments", addFollowUpComment);
 router.get("/bookings/:id/contract", getBookingContract);
 router.post("/bookings/:id/contract", upsertBookingContract);
 
@@ -223,5 +234,9 @@ router.put("/tasks/:id", updateTask);
 router.delete("/tasks/:id", deleteTask);
 
 router.post("/login", login);
+
+router.get("/notifications", authMiddleware, getNotifications);
+router.put("/notifications/read-all", authMiddleware, markAllAsRead);
+router.put("/notifications/:id/read", authMiddleware, markAsRead);
 
 export default router;

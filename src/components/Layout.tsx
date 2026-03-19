@@ -1,11 +1,80 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
-import { motion } from 'motion/react';
-import { Menu, Bell, Search } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Menu, Bell, Search, CheckCircle2 } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { Link } from 'react-router-dom';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+
+  useEffect(() => {
+    fetchNotifications();
+
+    const socket = io(window.location.origin);
+    
+    socket.on('connect', () => {
+      if (user.id) {
+        socket.emit('register', user.id);
+      }
+    });
+    
+    // Also register immediately in case it's already connected
+    if (socket.connected && user.id) {
+      socket.emit('register', user.id);
+    }
+
+    socket.on('notification', (newNotif: any) => {
+      setNotifications(prev => [newNotif, ...prev]);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      await fetch(`/api/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` }
+      });
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isread: true } : n));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await fetch(`/api/notifications/read-all`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` }
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, isread: true })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.isread && !n.isRead).length;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -27,16 +96,84 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all relative">
+          <div className="flex items-center gap-2 md:gap-4 relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all relative"
+            >
               <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold border-2 border-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
+
+            <AnimatePresence>
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden"
+                  >
+                    <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                      <h3 className="font-bold text-slate-900">Notifications</h3>
+                      {unreadCount > 0 && (
+                        <button 
+                          onClick={markAllAsRead}
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                        >
+                          <CheckCircle2 size={14} /> Mark all read
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500">
+                          <Bell size={32} className="mx-auto mb-3 text-slate-300" />
+                          <p className="text-sm font-medium">No notifications yet</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-50">
+                          {notifications.map((notif) => (
+                            <div 
+                              key={notif.id} 
+                              className={`p-4 hover:bg-slate-50 transition-colors flex gap-3 cursor-pointer ${!notif.isread && !notif.isRead ? 'bg-indigo-50/30' : ''}`}
+                              onClick={() => {
+                                if (!notif.isread && !notif.isRead) markAsRead(notif.id);
+                                if (notif.link) {
+                                  window.location.href = notif.link; // or use navigate if available
+                                }
+                                setShowNotifications(false);
+                              }}
+                            >
+                              <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${!notif.isread && !notif.isRead ? 'bg-indigo-600' : 'bg-transparent'}`} />
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-slate-900 mb-0.5">{notif.title}</p>
+                                <p className="text-xs text-slate-600 line-clamp-2">{notif.message}</p>
+                                <span className="text-[10px] text-slate-400 mt-2 block font-medium">
+                                  {new Date(notif.createdat || notif.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
             <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block"></div>
             <div className="flex items-center gap-3 pl-2">
               <div className="hidden sm:flex flex-col items-end">
                 <span className="text-sm font-bold text-slate-900 leading-none">{user.fullName}</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">{user.role === 'super_admin' ? 'Super Admin' : 'Tenant Admin'}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">{user.role === 'super_admin' ? 'Super Admin' : (user.roleName || 'Tenant Admin')}</span>
               </div>
               <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100">
                 {user.fullName?.charAt(0)}

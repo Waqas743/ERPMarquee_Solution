@@ -27,7 +27,7 @@ export async function createPlan(data: {
   const result = await query(
     `
       INSERT INTO SubscriptionPlans (name, priceMonthly, priceYearly, maxBranches, maxUsers, storageLimitGB, featureJson, createdBy)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::uuid)
       RETURNING id
     `,
     [data.name, data.priceMonthly, data.priceYearly, data.maxBranches, data.maxUsers, data.storageLimitGB, data.featureJson, data.createdBy || null]
@@ -50,13 +50,13 @@ export async function updatePlan(id: string, data: {
       UPDATE SubscriptionPlans SET
         name = $1, priceMonthly = $2, priceYearly = $3, maxBranches = $4,
         maxUsers = $5, storageLimitGB = $6, featureJson = $7,
-        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $8
-      WHERE id = $9
+        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $8::uuid
+      WHERE id = $9::uuid
     `,
     [data.name, data.priceMonthly, data.priceYearly, data.maxBranches, data.maxUsers, data.storageLimitGB, data.featureJson, data.modifiedBy || null, id]
   );
 }
 
 export async function deletePlan(id: string, deletedBy?: string) {
-  await query("UPDATE SubscriptionPlans SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE id = $1", [id, deletedBy || null]);
+  await query("UPDATE SubscriptionPlans SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE id = $1::uuid", [id, deletedBy || null]);
 }

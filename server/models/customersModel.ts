@@ -1,6 +1,6 @@
 import { query } from "../db";
 
-export async function listCustomers(tenantId: string, search?: string) {
+export async function listCustomers(tenantId: string, search?: string, userId?: string) {
   let queryText = `
     SELECT
       c.id,
@@ -19,12 +19,18 @@ export async function listCustomers(tenantId: string, search?: string) {
     FROM Customers c
     LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
     LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
-    WHERE c.tenantId = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
+    WHERE c.tenantId = $1::uuid AND COALESCE(c.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [tenantId];
+  if (userId) {
+    params.push(userId);
+    queryText += ` AND c.createdBy = $${params.length}::uuid`;
+  }
   if (search) {
-    queryText += ` AND (c.name ILIKE $${params.length + 1} OR c.phone ILIKE $${params.length + 2} OR c.cnic ILIKE $${params.length + 3} OR c.email ILIKE $${params.length + 4})`;
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    const searchParam = `%${search}%`;
+    params.push(searchParam, searchParam, searchParam, searchParam);
+    const pLen = params.length;
+    queryText += ` AND (c.name ILIKE $${pLen - 3} OR c.phone ILIKE $${pLen - 2} OR c.cnic ILIKE $${pLen - 1} OR c.email ILIKE $${pLen})`;
   }
   queryText += " ORDER BY c.createdAt DESC";
   return (await query(queryText, params)).rows;
@@ -49,7 +55,7 @@ export async function getCustomerById(id: string) {
     FROM Customers c
     LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
     LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
-    WHERE c.id = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
+    WHERE c.id = $1::uuid AND COALESCE(c.isDeleted, FALSE) = FALSE
   `, [id]);
   const customer = customerResult.rows[0] as any;
   if (customer) {
@@ -72,7 +78,7 @@ export async function getCustomerById(id: string) {
       FROM Bookings b
       JOIN Halls h ON b.hallId::text = h.id::text
       JOIN Branches br ON b.branchId::text = br.id::text
-      WHERE b.customerId = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
+      WHERE b.customerId = $1::uuid AND COALESCE(b.isDeleted, FALSE) = FALSE
       ORDER BY b.eventDate DESC
     `, [id])).rows;
     customer.bookings = bookings;
@@ -89,14 +95,14 @@ export async function createCustomer(data: {
   address: string;
   createdBy?: string;
 }) {
-  const tenant = await query("SELECT id FROM Tenants WHERE id = $1", [data.tenantId]);
+  const tenant = await query("SELECT id FROM Tenants WHERE id = $1::uuid", [data.tenantId]);
   if (tenant.rowCount === 0) {
     throw new Error("Invalid tenantId");
   }
   const result = await query(
     `
       INSERT INTO Customers (tenantId, name, cnic, phone, email, address, createdBy)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::uuid)
       RETURNING id
     `,
     [data.tenantId, data.name, data.cnic, data.phone, data.email, data.address, data.createdBy || null]
@@ -116,8 +122,8 @@ export async function updateCustomer(id: string, data: {
     `
       UPDATE Customers SET
         name = $1, cnic = $2, phone = $3, email = $4, address = $5,
-        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $6
-      WHERE id = $7
+        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $6::uuid
+      WHERE id = $7::uuid
     `,
     [data.name, data.cnic, data.phone, data.email, data.address, data.modifiedBy || null, id]
   );

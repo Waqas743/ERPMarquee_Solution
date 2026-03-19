@@ -620,7 +620,8 @@ const Users = () => {
                     required
                     value={formData.roleId}
                     onChange={e => setFormData({ ...formData, roleId: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    disabled={editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director')}
+                    className={`w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="">Select Role</option>
                     {roles.map((r: any) => (
@@ -634,7 +635,8 @@ const Users = () => {
                   <select
                     value={formData.branchId}
                     onChange={e => setFormData({ ...formData, branchId: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    disabled={editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director')}
+                    className={`w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="">All Branches (HQ)</option>
                     {branches.map((b: any) => (

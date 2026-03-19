@@ -5,7 +5,7 @@ export function startCronJobs() {
   console.log('Initializing cron jobs...');
 
   // Run every 10 seconds (for testing)
-  cron.schedule('*/10 * * * * *', async () => {
+  cron.schedule('0 0 3 * * *', async () => {
     try {
       console.log('Running daily booking status update job...');
       

@@ -5,11 +5,12 @@ import {
   ArrowLeft, Calendar, MapPin, User, Phone, Mail, 
   CreditCard, CheckCircle2, XCircle, Clock, AlertCircle,
   FileText, Download, Upload, MessageSquare, Send,
-  Plus, Printer, Share2, MoreVertical, Trash2, DollarSign, Utensils, Edit2, ListTodo
+  Plus, Printer, Share2, MoreVertical, Trash2, DollarSign, Utensils, Edit2, ListTodo, UserPlus
 } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { io } from 'socket.io-client';
 
 const BookingDetail = () => {
   const { id } = useParams();
@@ -44,6 +45,7 @@ const BookingDetail = () => {
   // Follow Up Modal State
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [editingFollowUp, setEditingFollowUp] = useState<any>(null);
+  const [newComments, setNewComments] = useState<{[key: string]: string}>({});
   const [followUpForm, setFollowUpForm] = useState({
     type: 'Note',
     status: 'Pending',
@@ -51,10 +53,16 @@ const BookingDetail = () => {
     notes: ''
   });
 
+  // Assign Modal State
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [staffList, setStaffList] = useState([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+
   // Print State
   const [printType, setPrintType] = useState<'details' | 'invoice' | 'contract' | null>(null);
 
   const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+  const canAssign = ['admin', 'director', 'manager'].includes((user.roleName || '').toLowerCase());
 
   const fetchData = async () => {
     setLoading(true);
@@ -87,7 +95,57 @@ const BookingDetail = () => {
 
   useEffect(() => {
     fetchData();
+
+    const socket = io(window.location.origin);
+    if (id) {
+      socket.emit("join_booking", id);
+    }
+
+    socket.on("booking_updated", () => {
+      fetchData();
+    });
+
+    return () => {
+      if (id) {
+        socket.emit("leave_booking", id);
+      }
+      socket.disconnect();
+    };
   }, [id]);
+
+  const fetchStaff = async () => {
+    try {
+      const res = await fetch(`/api/users?tenantId=${user.tenantId}`);
+      const data = await res.json();
+      setStaffList(data.filter((u: any) => (u.roleName || '').toLowerCase() === 'staff'));
+    } catch (error) {
+      console.error("Error fetching staff:", error);
+    }
+  };
+
+  const handleAssignBooking = async () => {
+    if (!selectedStaffId) return;
+    try {
+      const res = await fetch(`/api/bookings/${id}/assign`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({ assignedTo: selectedStaffId }),
+      });
+      if (res.ok) {
+        Swal.fire({ icon: 'success', title: 'Assigned successfully', showConfirmButton: false, timer: 1500 });
+        setIsAssignModalOpen(false);
+        fetchData();
+      } else {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to assign');
+      }
+    } catch (error: any) {
+      Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+    }
+  };
 
   const generateContractPDFFile = async (content: string) => {
     const doc = new jsPDF();
@@ -357,6 +415,33 @@ By signing below, both parties agree to the terms and conditions outlined in thi
       } catch (error) {
         console.error("Error deleting follow up:", error);
       }
+    }
+  };
+
+  const handleAddComment = async (followUpId: string) => {
+    const comment = newComments[followUpId];
+    if (!comment || !comment.trim()) return;
+
+    try {
+      const res = await fetch(`/api/bookings/${id}/follow-ups/${followUpId}/comments`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({ comment: comment.trim() })
+      });
+
+      if (res.ok) {
+        setNewComments(prev => ({ ...prev, [followUpId]: '' }));
+        fetchData();
+      } else {
+        const errorData = await res.json();
+        Swal.fire({ icon: 'error', title: 'Error', text: errorData.message || 'Failed to add comment' });
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to add comment' });
     }
   };
 
@@ -839,10 +924,27 @@ By signing below, both parties agree to the terms and conditions outlined in thi
             <p className="text-xs sm:text-sm text-slate-500">
               Modified: {safeFormat(booking.modifiedAt, 'MMM dd, yyyy')} • {booking.modifiedByName || booking.modifiedBy || '-'}
             </p>
+            {booking.assignedToName && (
+              <p className="text-xs sm:text-sm font-medium text-indigo-600">
+                Assigned To: {booking.assignedToName}
+              </p>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 no-print">
+          {canAssign && (
+            <button
+              onClick={() => {
+                fetchStaff();
+                setIsAssignModalOpen(true);
+              }}
+              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+              title="Assign to Staff"
+            >
+              <UserPlus size={18} className="sm:w-5 sm:h-5" />
+            </button>
+          )}
           <button 
             onClick={() => navigate(`/bookings/edit/${id}`)}
             disabled={!canEdit}
@@ -1110,55 +1212,93 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                   </div>
                 ) : (
                   followUps.map((followUp: any) => (
-                    <div key={followUp.id} className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${followUp.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : followUp.status === 'Cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-600'}`}>
-                          <MessageSquare size={20} className="sm:w-6 sm:h-6" />
+                    <div key={followUp.id} className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${followUp.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : followUp.status === 'Cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-600'}`}>
+                            <MessageSquare size={20} className="sm:w-6 sm:h-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${followUp.type === 'Call' ? 'bg-blue-50 text-blue-700' : followUp.type === 'Meeting' ? 'bg-purple-50 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
+                                {followUp.type}
+                              </span>
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${followUp.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : followUp.status === 'Cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700'}`}>
+                                {followUp.status}
+                              </span>
+                            </div>
+                            <p className="text-slate-700 text-sm sm:text-base mb-2">{followUp.notes}</p>
+                            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                              <span className="flex items-center gap-1"><Calendar size={12} /> {format(new Date(followUp.followUpDate), 'MMM dd, yyyy')}</span>
+                              <span className="flex items-center gap-1"><User size={12} /> {followUp.userName || 'System'}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${followUp.type === 'Call' ? 'bg-blue-50 text-blue-700' : followUp.type === 'Meeting' ? 'bg-purple-50 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
-                              {followUp.type}
-                            </span>
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${followUp.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : followUp.status === 'Cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700'}`}>
-                              {followUp.status}
-                            </span>
-                          </div>
-                          <p className="text-slate-700 text-sm sm:text-base mb-2">{followUp.notes}</p>
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                            <span className="flex items-center gap-1"><Calendar size={12} /> {format(new Date(followUp.followUpDate), 'MMM dd, yyyy')}</span>
-                            <span className="flex items-center gap-1"><User size={12} /> {followUp.userName || 'System'}</span>
-                          </div>
+                        <div className="flex items-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0">
+                          <button 
+                            disabled={isBookingCompleted || booking.status === 'Completed'}
+                            onClick={() => {
+                              setEditingFollowUp(followUp);
+                              setFollowUpForm({
+                                type: followUp.type,
+                                status: followUp.status,
+                                followUpDate: format(new Date(followUp.followUpDate), 'yyyy-MM-dd'),
+                                notes: followUp.notes
+                              });
+                              setIsFollowUpModalOpen(true);
+                            }}
+                            className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                              isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                            }`}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            disabled={isBookingCompleted || booking.status === 'Completed'}
+                            onClick={() => handleDeleteFollowUp(followUp.id)}
+                            className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                              isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                            }`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0">
-                        <button 
-                          disabled={isBookingCompleted || booking.status === 'Completed'}
-                          onClick={() => {
-                            setEditingFollowUp(followUp);
-                            setFollowUpForm({
-                              type: followUp.type,
-                              status: followUp.status,
-                              followUpDate: format(new Date(followUp.followUpDate), 'yyyy-MM-dd'),
-                              notes: followUp.notes
-                            });
-                            setIsFollowUpModalOpen(true);
-                          }}
-                          className={`p-1.5 sm:p-2 rounded-lg transition-all ${
-                            isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
-                          }`}
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          disabled={isBookingCompleted || booking.status === 'Completed'}
-                          onClick={() => handleDeleteFollowUp(followUp.id)}
-                          className={`p-1.5 sm:p-2 rounded-lg transition-all ${
-                            isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
-                          }`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+
+                      {/* Comments Section */}
+                      <div className="mt-2 pt-4 border-t border-slate-100 pl-14 sm:pl-16">
+                        {followUp.comments && followUp.comments.length > 0 && (
+                          <div className="space-y-3 mb-4">
+                            {followUp.comments.map((comment: any) => (
+                              <div key={comment.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                  <span className="font-semibold text-sm text-slate-800">{comment.userName}</span>
+                                  <span className="text-xs text-slate-400">{format(new Date(comment.createdAt), 'MMM dd, p')}</span>
+                                </div>
+                                <p className="text-sm text-slate-600">{comment.comment}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Add a comment..."
+                            value={newComments[followUp.id] || ''}
+                            onChange={(e) => setNewComments(prev => ({ ...prev, [followUp.id]: e.target.value }))}
+                            onKeyPress={(e) => e.key === 'Enter' && handleAddComment(followUp.id)}
+                            disabled={isBookingCompleted || booking.status === 'Completed'}
+                            className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          />
+                          <button
+                            onClick={() => handleAddComment(followUp.id)}
+                            disabled={isBookingCompleted || booking.status === 'Completed' || !newComments[followUp.id]?.trim()}
+                            className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Send size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -1831,6 +1971,55 @@ By signing below, both parties agree to the terms and conditions outlined in thi
           </div>
         </div>
       )}
+      {/* Assign Modal */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Assign Booking</h3>
+              <button 
+                onClick={() => setIsAssignModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <XCircle size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Select Staff</label>
+                <select
+                  value={selectedStaffId}
+                  onChange={(e) => setSelectedStaffId(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                >
+                  <option value="">Select a staff member</option>
+                  {staffList.map((staff: any) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.fullName} ({staff.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button 
+                onClick={() => setIsAssignModalOpen(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAssignBooking}
+                disabled={!selectedStaffId}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              >
+                Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

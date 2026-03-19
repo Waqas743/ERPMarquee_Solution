@@ -12,7 +12,16 @@ import {
 export async function listRoles(req: Request, res: Response) {
   const { tenantId } = req.query as { tenantId?: string };
   if (!tenantId) return res.status(400).json({ message: "tenantId is required" });
-  res.json(await getRolesWithPermissions(tenantId));
+  
+  const auth = (req as any).auth;
+  
+  // Only admin should be able to view roles now
+  if (auth.roleName !== "admin") {
+    return res.status(403).json({ message: "Only Admins can view roles" });
+  }
+
+  const roles = await getRolesWithPermissions(tenantId);
+  res.json(roles);
 }
 
 export async function getRole(req: Request, res: Response) {
@@ -23,12 +32,17 @@ export async function getRole(req: Request, res: Response) {
 }
 
 export async function createRole(req: Request, res: Response) {
+  const auth = (req as any).auth;
+  if (auth.roleName !== "admin") {
+    return res.status(403).json({ message: "Only Admins can manage roles" });
+  }
+
   const { tenantId, name, description, permissions } = req.body;
   try {
     if (!tenantId) {
       throw new Error("tenantId is required");
     }
-    const id = await createRoleModel({ tenantId, name, description, permissions, createdBy: String((req as any).auth?.userId || "") });
+    const id = await createRoleModel({ tenantId, name, description, permissions, createdBy: String(auth.userId || "") });
     res.json({ id });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -36,10 +50,15 @@ export async function createRole(req: Request, res: Response) {
 }
 
 export async function updateRole(req: Request, res: Response) {
+  const auth = (req as any).auth;
+  if (auth.roleName !== "admin") {
+    return res.status(403).json({ message: "Only Admins can manage roles" });
+  }
+
   const { id } = req.params;
   const { name, description, permissions } = req.body;
   try {
-    await updateRoleModel(id, { name, description, permissions, modifiedBy: String((req as any).auth?.userId || "") });
+    await updateRoleModel(id, { name, description, permissions, modifiedBy: String(auth.userId || "") });
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -47,9 +66,18 @@ export async function updateRole(req: Request, res: Response) {
 }
 
 export async function deleteRole(req: Request, res: Response) {
+  const auth = (req as any).auth;
+  if (auth.roleName !== "admin") {
+    return res.status(403).json({ message: "Only Admins can manage roles" });
+  }
+
   const { id } = req.params;
-  await deleteRoleModel(id, String((req as any).auth?.userId || ""));
-  res.json({ success: true });
+  try {
+    await deleteRoleModel(id, String(auth.userId || ""));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
 }
 
 export function permissionsList(req: Request, res: Response) {

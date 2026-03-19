@@ -1,24 +1,29 @@
 import { query } from "../db";
 
-export async function getDashboardStats(tenantId: string, branchId?: string) {
+export async function getDashboardStats(tenantId: string, branchId?: string, userId?: string) {
   let bookingQuery = `
     SELECT 
       b.status, 
       b.eventDate as "eventDate",
       b.grandTotal as "grandTotal", 
       b.paymentStatus as "paymentStatus",
+      b.assignedTo as "assignedTo",
       COALESCE((
         SELECT SUM(amount)
         FROM BookingPayments
-        WHERE bookingId = b.id AND status = 'Paid' AND COALESCE(isDeleted, FALSE) = FALSE
+        WHERE bookingId::text = b.id::text AND status = 'Paid' AND COALESCE(isDeleted, FALSE) = FALSE
       ), 0) as "paidAmount"
     FROM Bookings b
-    WHERE b.tenantId = $1 AND COALESCE(b.isDeleted, FALSE) = FALSE
+    WHERE b.tenantId = $1::uuid AND COALESCE(b.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [tenantId];
   if (branchId) {
-    bookingQuery += " AND b.branchId = $2";
     params.push(branchId);
+    bookingQuery += ` AND b.branchId = $${params.length}::uuid`;
+  }
+  if (userId) {
+    params.push(userId);
+    bookingQuery += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
   }
   const bookings = (await query(bookingQuery, params)).rows as any[];
   
@@ -32,10 +37,15 @@ export async function getDashboardStats(tenantId: string, branchId?: string) {
   let paidInvoices = 0;
   let pendingInvoices = 0;
   let totalInvoices = 0;
+  let assignedBookings = 0;
 
   const today = new Date().toISOString().split("T")[0];
 
   bookings.forEach(b => {
+    if (userId && b.assignedTo === userId) {
+      assignedBookings++;
+    }
+
     if (b.status === "Approved" || b.status === "Confirmed") {
       confirmedBookings++;
       
@@ -76,6 +86,7 @@ export async function getDashboardStats(tenantId: string, branchId?: string) {
     totalSales,
     pendingPayment,
     totalBookings,
+    assignedBookings,
     confirmedBookings,
     cancelledBookings,
     pendingBookings,
@@ -86,7 +97,7 @@ export async function getDashboardStats(tenantId: string, branchId?: string) {
   };
 }
 
-export async function getDashboardCalendar(tenantId: string, branchId?: string, start?: string, end?: string) {
+export async function getDashboardCalendar(tenantId: string, branchId?: string, start?: string, end?: string, userId?: string) {
   let queryText = `
     SELECT 
       b.id, 
@@ -99,21 +110,25 @@ export async function getDashboardCalendar(tenantId: string, branchId?: string, 
     FROM Bookings b
     JOIN Halls h ON b.hallId::text = h.id::text
     JOIN Customers c ON b.customerId::text = c.id::text
-    WHERE b.tenantId = $1 AND b.status IN ('Approved', 'Confirmed')
+    WHERE b.tenantId = $1::uuid AND b.status IN ('Approved', 'Confirmed')
   `;
   const params: any[] = [tenantId];
   if (branchId) {
-    queryText += " AND b.branchId = $2";
     params.push(branchId);
+    queryText += ` AND b.branchId = $${params.length}::uuid`;
+  }
+  if (userId) {
+    params.push(userId);
+    queryText += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
   }
   if (start && end) {
-    queryText += ` AND b.eventDate BETWEEN $${params.length + 1} AND $${params.length + 2}`;
     params.push(start, end);
+    queryText += ` AND b.eventDate BETWEEN $${params.length - 1} AND $${params.length}`;
   }
   return (await query(queryText, params)).rows;
 }
 
-export async function getDashboardUpcomingEvents(tenantId: string, branchId?: string) {
+export async function getDashboardUpcomingEvents(tenantId: string, branchId?: string, userId?: string) {
   const today = new Date().toISOString().split("T")[0];
   let queryText = `
     SELECT 
@@ -130,18 +145,22 @@ export async function getDashboardUpcomingEvents(tenantId: string, branchId?: st
     FROM Bookings b
     JOIN Halls h ON b.hallId::text = h.id::text
     JOIN Customers c ON b.customerId::text = c.id::text
-    WHERE b.tenantId = $1 AND b.eventDate >= $2 AND b.status IN ('Approved', 'Confirmed')
+    WHERE b.tenantId = $1::uuid AND b.eventDate >= $2 AND b.status IN ('Approved', 'Confirmed')
   `;
   const params: any[] = [tenantId, today];
   if (branchId) {
-    queryText += ` AND b.branchId = $${params.length + 1}`;
     params.push(branchId);
+    queryText += ` AND b.branchId = $${params.length}::uuid`;
+  }
+  if (userId) {
+    params.push(userId);
+    queryText += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
   }
   queryText += " ORDER BY b.eventDate ASC LIMIT 10";
   return (await query(queryText, params)).rows;
 }
 
-export async function getDashboardCompletedEvents(tenantId: string, branchId?: string) {
+export async function getDashboardCompletedEvents(tenantId: string, branchId?: string, userId?: string) {
   const today = new Date().toISOString().split("T")[0];
   let queryText = `
     SELECT 
@@ -157,18 +176,22 @@ export async function getDashboardCompletedEvents(tenantId: string, branchId?: s
     FROM Bookings b
     JOIN Halls h ON b.hallId::text = h.id::text
     JOIN Customers c ON b.customerId::text = c.id::text
-    WHERE b.tenantId = $1 AND b.status = 'Completed'
+    WHERE b.tenantId = $1::uuid AND b.status = 'Completed'
   `;
   const params: any[] = [tenantId];
   if (branchId) {
-    queryText += ` AND b.branchId = $2`;
     params.push(branchId);
+    queryText += ` AND b.branchId = $${params.length}::uuid`;
+  }
+  if (userId) {
+    params.push(userId);
+    queryText += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
   }
   queryText += " ORDER BY b.eventDate DESC LIMIT 10";
   return (await query(queryText, params)).rows;
 }
 
-export async function getDashboardInvoices(tenantId: string, branchId?: string) {
+export async function getDashboardInvoices(tenantId: string, branchId?: string, userId?: string) {
   let queryText = `
     SELECT 
       b.id, 
@@ -179,38 +202,43 @@ export async function getDashboardInvoices(tenantId: string, branchId?: string) 
       c.name as "customerName"
     FROM Bookings b
     JOIN Customers c ON b.customerId::text = c.id::text
-    WHERE b.tenantId = $1
+    WHERE b.tenantId = $1::uuid AND b.status IN ('Approved', 'Confirmed', 'Completed')
   `;
   const params: any[] = [tenantId];
   if (branchId) {
-    queryText += ` AND b.branchId = $${params.length + 1}`;
     params.push(branchId);
+    queryText += ` AND b.branchId = $${params.length}::uuid`;
+  }
+  if (userId) {
+    params.push(userId);
+    queryText += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
   }
   queryText += " ORDER BY b.createdAt DESC LIMIT 10";
   return (await query(queryText, params)).rows;
 }
 
-export async function getDashboardCharts(tenantId: string, branchId?: string) {
+export async function getDashboardCharts(tenantId: string, branchId?: string, userId?: string) {
   let queryText = `
     SELECT 
       TO_CHAR(DATE(b.eventDate), 'Mon') as month,
       EXTRACT(YEAR FROM DATE(b.eventDate)) as year,
       SUM(b.grandTotal) as total
     FROM Bookings b
-    WHERE b.tenantId = $1 AND b.status IN ('Approved', 'Confirmed')
+    WHERE b.tenantId = $1::uuid AND b.status IN ('Approved', 'Confirmed', 'Completed') AND COALESCE(b.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [tenantId];
-  
   if (branchId) {
-    queryText += ` AND b.branchId = $${params.length + 1}`;
     params.push(branchId);
+    queryText += ` AND b.branchId = $${params.length}::uuid`;
   }
-  
+  if (userId) {
+    params.push(userId);
+    queryText += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
+  }
   queryText += ` GROUP BY TO_CHAR(DATE(b.eventDate), 'Mon'), EXTRACT(MONTH FROM DATE(b.eventDate)), EXTRACT(YEAR FROM DATE(b.eventDate))
                  ORDER BY EXTRACT(YEAR FROM DATE(b.eventDate)), EXTRACT(MONTH FROM DATE(b.eventDate))`;
-                 
-  const dbResult = (await query(queryText, params)).rows;
   
+  const dbResult = (await query(queryText, params)).rows;
   const monthlySales = dbResult.map(r => ({
     month: `${r.month} ${r.year}`, // Include year to differentiate e.g. "Mar 2025" vs "Mar 2026"
     total: Number(r.total) || 0

@@ -143,6 +143,7 @@ const Dashboard = () => {
   const user = getCurrentUser();
   const tenantId = getTenantId();
   const isSuperAdmin = user.role === 'super_admin';
+  const isStaff = (user.roleName || '').toLowerCase() === 'staff';
 
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState({
@@ -256,6 +257,13 @@ const Dashboard = () => {
             <StatCard icon={Building} label="Total Branches" value={superAdminStats.branches} color="bg-amber-600" />
             <StatCard icon={TrendingUp} label="System Status" value="Healthy" color="bg-indigo-500" />
           </>
+        ) : isStaff ? (
+          <>
+            <StatCard icon={CalendarIcon} label="Assigned Bookings" value={dashboardData.stats?.assignedBookings || 0} color="bg-indigo-600" />
+            <StatCard icon={CalendarIcon} label="Total Bookings" value={dashboardData.stats?.totalBookings || 0} color="bg-slate-700" />
+            <StatCard icon={Clock} label="Pending Bookings" value={dashboardData.stats?.pendingBookings || 0} color="bg-amber-500" />
+            <StatCard icon={XCircle} label="Rejected Bookings" value={dashboardData.stats?.cancelledBookings || 0} color="bg-red-600" />
+          </>
         ) : (
           <>
             <StatCard icon={DollarSign} label="Total Sales" value={dashboardData.stats?.totalSales} prefix="Rs. " color="bg-emerald-600" />
@@ -275,40 +283,42 @@ const Dashboard = () => {
 
       {!isSuperAdmin && (
         <>
-          <div className="space-y-8">
-            {/* Charts */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
-              <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Sales (Rs.)</h3>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dashboardData.charts?.monthlySales}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                      dataKey="month" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#94a3b8', fontSize: 12 }}
-                      type="category"
-                    />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+          {!isStaff && (
+            <div className="space-y-8">
+              {/* Charts */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
+                <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Sales (Rs.)</h3>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dashboardData.charts?.monthlySales}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="month" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 12 }}
+                        type="category"
+                      />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Calendar */}
+              <div className="w-full">
+                <Calendar bookings={dashboardData.calendar} />
               </div>
             </div>
-
-            {/* Calendar */}
-            <div className="w-full">
-              <Calendar bookings={dashboardData.calendar} />
-            </div>
-          </div>
+          )}
 
           {/* Tables Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className={`grid grid-cols-1 ${!isStaff ? 'lg:grid-cols-2' : ''} gap-8 mt-8`}>
             {/* Upcoming Events */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex items-center justify-between">
@@ -356,94 +366,98 @@ const Dashboard = () => {
             </div>
 
             {/* Invoices Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                  <FileText size={18} className="text-indigo-600" />
-                  Recent Invoices
-                </h3>
+            {!isStaff && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                    <FileText size={18} className="text-indigo-600" />
+                    Recent Invoices
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-6 py-3">Booking #</th>
+                        <th className="px-6 py-3">Customer</th>
+                        <th className="px-6 py-3">Amount</th>
+                        <th className="px-6 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {dashboardData.invoices.length === 0 ? (
+                        <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No invoices found.</td></tr>
+                      ) : (
+                        dashboardData.invoices.map((inv) => (
+                          <tr key={inv.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/bookings/${inv.id}`}>
+                            <td className="px-6 py-4 font-bold text-indigo-600">#{inv.bookingNumber}</td>
+                            <td className="px-6 py-4 font-medium text-slate-900">{inv.customerName}</td>
+                            <td className="px-6 py-4 font-black text-slate-900">Rs. {inv.grandTotal?.toLocaleString()}</td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                inv.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                inv.paymentStatus === 'Partial' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                                'bg-red-50 text-red-700 border border-red-100'
+                              }`}>
+                                {inv.paymentStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="px-6 py-3">Booking #</th>
-                      <th className="px-6 py-3">Customer</th>
-                      <th className="px-6 py-3">Amount</th>
-                      <th className="px-6 py-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {dashboardData.invoices.length === 0 ? (
-                      <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No invoices found.</td></tr>
-                    ) : (
-                      dashboardData.invoices.map((inv) => (
-                        <tr key={inv.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/bookings/${inv.id}`}>
-                          <td className="px-6 py-4 font-bold text-indigo-600">#{inv.bookingNumber}</td>
-                          <td className="px-6 py-4 font-medium text-slate-900">{inv.customerName}</td>
-                          <td className="px-6 py-4 font-black text-slate-900">Rs. {inv.grandTotal?.toLocaleString()}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              inv.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                              inv.paymentStatus === 'Partial' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                              'bg-red-50 text-red-700 border border-red-100'
-                            }`}>
-                              {inv.paymentStatus}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            )}
 
             {/* Completed Events */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden lg:col-span-2">
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                  <CheckCircle2 size={18} className="text-emerald-600" />
-                  Completed Events
-                </h3>
+            {!isStaff && (
+              <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden ${!isStaff ? 'lg:col-span-2' : ''}`}>
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                    <CheckCircle2 size={18} className="text-emerald-600" />
+                    Completed Events
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-6 py-3">Event Date</th>
+                        <th className="px-6 py-3">Booking #</th>
+                        <th className="px-6 py-3">Customer</th>
+                        <th className="px-6 py-3">Hall</th>
+                        <th className="px-6 py-3">Total Amount</th>
+                        <th className="px-6 py-3">Payment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {dashboardData.completed.length === 0 ? (
+                        <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400 italic">No completed events found.</td></tr>
+                      ) : (
+                        dashboardData.completed.map((b) => (
+                          <tr key={b.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/bookings/${b.id}`}>
+                            <td className="px-6 py-4 font-bold text-slate-900">{format(new Date(b.eventDate), 'MMM dd, yyyy')}</td>
+                            <td className="px-6 py-4 text-indigo-600 font-medium">#{b.bookingNumber}</td>
+                            <td className="px-6 py-4 font-medium text-slate-900">{b.customerName}</td>
+                            <td className="px-6 py-4 text-slate-600">{b.hallName}</td>
+                            <td className="px-6 py-4 font-bold text-slate-900">Rs. {b.grandTotal?.toLocaleString()}</td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                b.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                              }`}>
+                                {b.paymentStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="px-6 py-3">Event Date</th>
-                      <th className="px-6 py-3">Booking #</th>
-                      <th className="px-6 py-3">Customer</th>
-                      <th className="px-6 py-3">Hall</th>
-                      <th className="px-6 py-3">Total Amount</th>
-                      <th className="px-6 py-3">Payment</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {dashboardData.completed.length === 0 ? (
-                      <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400 italic">No completed events found.</td></tr>
-                    ) : (
-                      dashboardData.completed.map((b) => (
-                        <tr key={b.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/bookings/${b.id}`}>
-                          <td className="px-6 py-4 font-bold text-slate-900">{format(new Date(b.eventDate), 'MMM dd, yyyy')}</td>
-                          <td className="px-6 py-4 text-indigo-600 font-medium">#{b.bookingNumber}</td>
-                          <td className="px-6 py-4 font-medium text-slate-900">{b.customerName}</td>
-                          <td className="px-6 py-4 text-slate-600">{b.hallName}</td>
-                          <td className="px-6 py-4 font-bold text-slate-900">Rs. {b.grandTotal?.toLocaleString()}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              b.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                            }`}>
-                              {b.paymentStatus}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            )}
           </div>
         </>
       )}

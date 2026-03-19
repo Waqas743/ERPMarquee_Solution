@@ -18,7 +18,7 @@ export async function listMenuCategories(tenantId: string) {
       FROM MenuCategories c
       LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
       LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
-      WHERE c.tenantId = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
+      WHERE c.tenantId = $1::uuid AND COALESCE(c.isDeleted, FALSE) = FALSE
     `,
     [tenantId]
   );
@@ -43,7 +43,7 @@ export async function getMenuCategoryById(id: string) {
       FROM MenuCategories c
       LEFT JOIN TenantUsers cb ON c.createdBy::text = cb.id::text
       LEFT JOIN TenantUsers mb ON c.modifiedBy::text = mb.id::text
-      WHERE c.id = $1 AND COALESCE(c.isDeleted, FALSE) = FALSE
+      WHERE c.id = $1::uuid AND COALESCE(c.isDeleted, FALSE) = FALSE
     `,
     [id]
   );
@@ -52,7 +52,7 @@ export async function getMenuCategoryById(id: string) {
 
 export async function createMenuCategory(data: { tenantId: string; name: string; description?: string; isActive: boolean; createdBy?: string }) {
   const result = await query(
-    "INSERT INTO MenuCategories (tenantId, name, description, isActive, createdBy) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    "INSERT INTO MenuCategories (tenantId, name, description, isActive, createdBy) VALUES ($1::uuid, $2, $3, $4, $5::uuid) RETURNING id",
     [data.tenantId, data.name, data.description, data.isActive, data.createdBy || null]
   );
   return result.rows[0]?.id;
@@ -60,35 +60,31 @@ export async function createMenuCategory(data: { tenantId: string; name: string;
 
 export async function updateMenuCategory(id: string, data: { name: string; description?: string; isActive: boolean; modifiedBy?: string }) {
   await query(
-    "UPDATE MenuCategories SET name = $1, description = $2, isActive = $3, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $4 WHERE id = $5",
+    "UPDATE MenuCategories SET name = $1, description = $2, isActive = $3, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $4::uuid WHERE id = $5::uuid",
     [data.name, data.description, data.isActive, data.modifiedBy || null, id]
   );
 }
 
 export async function deleteMenuCategory(id: string, deletedBy?: string) {
   await withTransaction(async (client) => {
-    const items = (await query("SELECT id FROM MenuItems WHERE categoryId = $1", [id], client)).rows as any[];
+    const items = (await query("SELECT id FROM MenuItems WHERE categoryId = $1::uuid", [id], client)).rows as any[];
     for (const item of items) {
-      await query(
-        "UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE menuItemId = $1",
-        [item.id, deletedBy || null],
-        client
+      await client.query(
+        "UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE menuItemId = $1::uuid",
+        [item.id, deletedBy || null]
       );
-      await query(
-        "UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE menuItemId = $1",
-        [item.id, deletedBy || null],
-        client
+      await client.query(
+        "UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE menuItemId = $1::uuid",
+        [item.id, deletedBy || null]
       );
-      await query(
-        "UPDATE MenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2, isActive = FALSE WHERE id = $1",
-        [item.id, deletedBy || null],
-        client
+      await client.query(
+        "UPDATE MenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid, isActive = FALSE WHERE id = $1::uuid",
+        [item.id, deletedBy || null]
       );
     }
-    await query(
-      "UPDATE MenuCategories SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2, isActive = FALSE WHERE id = $1",
-      [id, deletedBy || null],
-      client
+    await client.query(
+      "UPDATE MenuCategories SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid, isActive = FALSE WHERE id = $1::uuid",
+      [id, deletedBy || null]
     );
   });
 }
@@ -113,11 +109,11 @@ export async function listMenuItems(tenantId: string, categoryId?: string) {
     JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text 
     LEFT JOIN TenantUsers cb ON mi.createdBy::text = cb.id::text
     LEFT JOIN TenantUsers mb ON mi.modifiedBy::text = mb.id::text
-    WHERE mi.tenantId = $1 AND COALESCE(mi.isDeleted, FALSE) = FALSE
+    WHERE mi.tenantId = $1::uuid AND COALESCE(mi.isDeleted, FALSE) = FALSE
   `;
   const params: any[] = [tenantId];
   if (categoryId) {
-    queryText += ` AND mi.categoryId = $${params.length + 1}`;
+    queryText += ` AND mi.categoryId = $${params.length + 1}::uuid`;
     params.push(categoryId);
   }
   return (await query(queryText, params)).rows;
@@ -144,7 +140,7 @@ export async function getMenuItemById(id: string) {
       JOIN MenuCategories mc ON mi.categoryId::text = mc.id::text 
       LEFT JOIN TenantUsers cb ON mi.createdBy::text = cb.id::text
       LEFT JOIN TenantUsers mb ON mi.modifiedBy::text = mb.id::text
-      WHERE mi.id = $1 AND COALESCE(mi.isDeleted, FALSE) = FALSE
+      WHERE mi.id = $1::uuid AND COALESCE(mi.isDeleted, FALSE) = FALSE
     `,
     [id]
   );
@@ -155,7 +151,7 @@ export async function createMenuItem(data: { tenantId: string; categoryId: strin
   const result = await query(
     `
       INSERT INTO MenuItems (tenantId, categoryId, name, description, isActive, createdBy)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::uuid)
       RETURNING id
     `,
     [data.tenantId, data.categoryId, data.name, data.description, data.isActive, data.createdBy || null]
@@ -167,9 +163,9 @@ export async function updateMenuItem(id: string, data: { categoryId: string; nam
   await query(
     `
       UPDATE MenuItems SET
-        categoryId = $1, name = $2, description = $3, isActive = $4,
-        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5
-      WHERE id = $6
+        categoryId = $1::uuid, name = $2, description = $3, isActive = $4,
+        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5::uuid
+      WHERE id = $6::uuid
     `,
     [data.categoryId, data.name, data.description, data.isActive, data.modifiedBy || null, id]
   );
@@ -177,20 +173,17 @@ export async function updateMenuItem(id: string, data: { categoryId: string; nam
 
 export async function deleteMenuItem(id: string, deletedBy?: string) {
   await withTransaction(async (client) => {
-    await query(
-      "UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE menuItemId = $1",
-      [id, deletedBy || null],
-      client
+    await client.query(
+      "UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE menuItemId = $1::uuid",
+      [id, deletedBy || null]
     );
-    await query(
-      "UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE menuItemId = $1",
-      [id, deletedBy || null],
-      client
+    await client.query(
+      "UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE menuItemId = $1::uuid",
+      [id, deletedBy || null]
     );
-    await query(
-      "UPDATE MenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2, isActive = FALSE WHERE id = $1",
-      [id, deletedBy || null],
-      client
+    await client.query(
+      "UPDATE MenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid, isActive = FALSE WHERE id = $1::uuid",
+      [id, deletedBy || null]
     );
   });
 }

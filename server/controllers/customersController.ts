@@ -10,7 +10,11 @@ import {
 export async function listCustomers(req: Request, res: Response) {
   const { tenantId, search } = req.query as { tenantId?: string; search?: string };
   if (!tenantId) return res.status(400).json({ message: "tenantId is required" });
-  res.json(await listCustomersModel(tenantId, search));
+
+  const auth = (req as any).auth;
+  const userId = auth.roleName === "staff" ? auth.userId : undefined;
+
+  res.json(await listCustomersModel(tenantId, search, userId));
 }
 
 export async function getCustomer(req: Request, res: Response) {

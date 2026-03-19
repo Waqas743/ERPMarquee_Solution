@@ -81,7 +81,7 @@ export async function getEventPackageById(id: string) {
           ao.description
         FROM PackageAddons pa
         JOIN AddOns ao ON pa.addOnId::text = ao.id::text
-        WHERE pa.packageId = $1 AND COALESCE(pa.isDeleted, FALSE) = FALSE AND COALESCE(ao.isDeleted, FALSE) = FALSE
+        WHERE pa.packageId = $1::uuid AND COALESCE(pa.isDeleted, FALSE) = FALSE AND COALESCE(ao.isDeleted, FALSE) = FALSE
       `,
       [id]
     )
@@ -104,7 +104,7 @@ export async function createEventPackage(data: {
     const result = await query(
       `
         INSERT INTO EventPackages (tenantId, name, description, basePrice, maxGuests, isActive, createdBy)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::uuid)
         RETURNING id
       `,
       [data.tenantId, data.name, data.description, data.basePrice, data.maxGuests, data.isActive, data.createdBy || null],
@@ -130,10 +130,9 @@ export async function createEventPackage(data: {
     }
     if (data.addOns && Array.isArray(data.addOns)) {
       for (const addon of data.addOns) {
-        await query(
-          "INSERT INTO PackageAddons (packageId, addOnId, isActive, createdBy) VALUES ($1, $2, $3, $4)",
-          [packageId, addon.addOnId, addon.isActive, data.createdBy || null],
-          client
+        await client.query(
+          "INSERT INTO PackageAddons (packageId, addOnId, isActive, createdBy) VALUES ($1::uuid, $2::uuid, $3, $4::uuid)",
+          [packageId, addon.addOnId, addon.isActive, data.createdBy || null]
         );
       }
     }
@@ -152,17 +151,16 @@ export async function updateEventPackage(id: string, data: {
   modifiedBy?: string;
 }) {
   await withTransaction(async (client) => {
-    await query(
+    await client.query(
       `
         UPDATE EventPackages SET
           name = $1, description = $2, basePrice = $3, maxGuests = $4, isActive = $5,
-          modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $6
-        WHERE id = $7
+          modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $6::uuid
+        WHERE id = $7::uuid
       `,
-      [data.name, data.description, data.basePrice, data.maxGuests, data.isActive, data.modifiedBy || null, id],
-      client
+      [data.name, data.description, data.basePrice, data.maxGuests, data.isActive, data.modifiedBy || null, id]
     );
-    await query("UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE packageId = $1", [id, data.modifiedBy || null], client);
+    await client.query("UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE packageId = $1::uuid", [id, data.modifiedBy || null]);
     if (data.menuItems && Array.isArray(data.menuItems)) {
       for (const item of data.menuItems) {
         // Fallback for case sensitivity
@@ -173,20 +171,18 @@ export async function updateEventPackage(id: string, data: {
              continue;
         }
 
-        await query(
-          "INSERT INTO PackageMenuMapping (packageId, menuItemId, quantity, notes, createdBy) VALUES ($1, $2, $3, $4, $5)",
-          [id, menuItemId, item.quantity, item.notes, data.modifiedBy || null],
-          client
+        await client.query(
+          "INSERT INTO PackageMenuMapping (packageId, menuItemId, quantity, notes, createdBy) VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid)",
+          [id, menuItemId, item.quantity, item.notes, data.modifiedBy || null]
         );
       }
     }
-    await query("UPDATE PackageAddons SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE packageId = $1", [id, data.modifiedBy || null], client);
+    await client.query("UPDATE PackageAddons SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE packageId = $1::uuid", [id, data.modifiedBy || null]);
     if (data.addOns && Array.isArray(data.addOns)) {
       for (const addon of data.addOns) {
-        await query(
-          "INSERT INTO PackageAddons (packageId, addOnId, isActive, createdBy) VALUES ($1, $2, $3, $4)",
-          [id, addon.addOnId, addon.isActive, data.modifiedBy || null],
-          client
+        await client.query(
+          "INSERT INTO PackageAddons (packageId, addOnId, isActive, createdBy) VALUES ($1::uuid, $2::uuid, $3, $4::uuid)",
+          [id, addon.addOnId, addon.isActive, data.modifiedBy || null]
         );
       }
     }
@@ -195,9 +191,9 @@ export async function updateEventPackage(id: string, data: {
 
 export async function deleteEventPackage(id: string, deletedBy?: string) {
   await withTransaction(async (client) => {
-    await query("UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE packageId = $1", [id, deletedBy || null], client);
-    await query("UPDATE PackageAddons SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE packageId = $1", [id, deletedBy || null], client);
-    await query("UPDATE Bookings SET packageId = NULL WHERE packageId = $1", [id], client);
-    await query("UPDATE EventPackages SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2, isActive = FALSE WHERE id = $1", [id, deletedBy || null], client);
+    await client.query("UPDATE PackageMenuMapping SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE packageId = $1::uuid", [id, deletedBy || null]);
+    await client.query("UPDATE PackageAddons SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE packageId = $1::uuid", [id, deletedBy || null]);
+    await client.query("UPDATE Bookings SET packageId = NULL WHERE packageId = $1::uuid", [id]);
+    await client.query("UPDATE EventPackages SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid, isActive = FALSE WHERE id = $1::uuid", [id, deletedBy || null]);
   });
 }

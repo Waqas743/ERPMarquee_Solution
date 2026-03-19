@@ -2,16 +2,17 @@ import { query, withTransaction } from "../db";
 
 export async function getRolesWithPermissions(tenantId: string) {
   const roles = (await query(`
-      SELECT r.*, cb.fullName as "createdByName", mb.fullName as "modifiedByName"
+      SELECT r.*, r.isSystem as "isSystem", cb.fullName as "createdByName", mb.fullName as "modifiedByName"
       FROM Roles r
       LEFT JOIN TenantUsers cb ON r.createdBy::text = cb.id::text
       LEFT JOIN TenantUsers mb ON r.modifiedBy::text = mb.id::text
-      WHERE r.tenantId = $1 AND COALESCE(r.isDeleted, FALSE) = FALSE
+      WHERE r.tenantId = $1::uuid AND COALESCE(r.isDeleted, FALSE) = FALSE
+      ORDER BY r.isSystem DESC, r.createdAt DESC
     `, [tenantId])).rows as any[];
   const results = [];
   for (const role of roles) {
     const permissions = (
-      await query("SELECT permissionKey FROM RolePermissions WHERE roleId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [role.id])
+      await query("SELECT permissionKey FROM RolePermissions WHERE roleId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [role.id])
     ).rows as any[];
     results.push({ ...role, permissions: permissions.map((p) => p.permissionkey ?? p.permissionKey) });
   }
@@ -19,10 +20,10 @@ export async function getRolesWithPermissions(tenantId: string) {
 }
 
 export async function getRoleById(id: string) {
-  const role = (await query("SELECT * FROM Roles WHERE id = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id])).rows[0] as any;
+  const role = (await query("SELECT * FROM Roles WHERE id = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id])).rows[0] as any;
   if (!role) return null;
   const permissions = (
-    await query("SELECT permissionKey FROM RolePermissions WHERE roleId = $1 AND COALESCE(isDeleted, FALSE) = FALSE", [id])
+    await query("SELECT permissionKey FROM RolePermissions WHERE roleId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE", [id])
   ).rows as any[];
   return { ...role, permissions: permissions.map((p) => p.permissionkey ?? p.permissionKey) };
 }
@@ -34,20 +35,19 @@ export async function createRole(data: {
   permissions?: string[];
   createdBy?: string;
 }) {
-  const tenant = await query("SELECT id FROM Tenants WHERE id = $1", [data.tenantId]);
+  const tenant = await query("SELECT id FROM Tenants WHERE id = $1::uuid", [data.tenantId]);
   if (tenant.rowCount === 0) {
     throw new Error(`Tenant with ID ${data.tenantId} does not exist`);
   }
   return withTransaction(async (client) => {
-    const info = await query(
-      "INSERT INTO Roles (tenantId, name, description, createdBy) VALUES ($1, $2, $3, $4) RETURNING id",
-      [data.tenantId, data.name, data.description, data.createdBy || null],
-      client
+    const info = await client.query(
+      "INSERT INTO Roles (tenantId, name, description, createdBy) VALUES ($1::uuid, $2, $3, $4::uuid) RETURNING id",
+      [data.tenantId, data.name, data.description, data.createdBy || null]
     );
     const roleId = info.rows[0]?.id;
     if (data.permissions && Array.isArray(data.permissions)) {
       for (const p of data.permissions) {
-        await query("INSERT INTO RolePermissions (roleId, permissionKey, createdBy) VALUES ($1, $2, $3)", [roleId, p, data.createdBy || null], client);
+        await client.query("INSERT INTO RolePermissions (roleId, permissionKey, createdBy) VALUES ($1::uuid, $2, $3::uuid)", [roleId, p, data.createdBy || null]);
       }
     }
     return roleId;
@@ -60,37 +60,50 @@ export async function updateRole(id: string, data: {
   permissions?: string[];
   modifiedBy?: string;
 }) {
+  const roleCheck = await query("SELECT isSystem FROM Roles WHERE id = $1::uuid", [id]);
+  const isSystem = roleCheck.rowCount > 0 && roleCheck.rows[0].issystem;
+
   await withTransaction(async (client) => {
-    await query(
-      "UPDATE Roles SET name = $1, description = $2, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $3 WHERE id = $4",
-      [data.name, data.description, data.modifiedBy || null, id],
-      client
-    );
+    if (isSystem) {
+      // For system roles, do not update name or description, only update modifiedBy/modifiedAt
+      await client.query(
+        "UPDATE Roles SET modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $1::uuid WHERE id = $2::uuid",
+        [data.modifiedBy || null, id]
+      );
+    } else {
+      await client.query(
+        "UPDATE Roles SET name = $1, description = $2, modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $3::uuid WHERE id = $4::uuid",
+        [data.name, data.description, data.modifiedBy || null, id]
+      );
+    }
+
     if (data.permissions && Array.isArray(data.permissions)) {
-      await query(
-        "UPDATE RolePermissions SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE roleId = $1",
-        [id, data.modifiedBy || null],
-        client
+      await client.query(
+        "UPDATE RolePermissions SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE roleId = $1::uuid",
+        [id, data.modifiedBy || null]
       );
       for (const p of data.permissions) {
-        await query("INSERT INTO RolePermissions (roleId, permissionKey, createdBy) VALUES ($1, $2, $3)", [id, p, data.modifiedBy || null], client);
+        await client.query("INSERT INTO RolePermissions (roleId, permissionKey, createdBy) VALUES ($1::uuid, $2, $3::uuid)", [id, p, data.modifiedBy || null]);
       }
     }
   });
 }
 
 export async function deleteRole(id: string, deletedBy?: string) {
+  const roleCheck = await query("SELECT isSystem FROM Roles WHERE id = $1::uuid", [id]);
+  if (roleCheck.rowCount > 0 && roleCheck.rows[0].issystem) {
+    throw new Error("System default roles cannot be deleted.");
+  }
+
   await withTransaction(async (client) => {
-    await query(
-      "UPDATE RolePermissions SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE roleId = $1",
-      [id, deletedBy || null],
-      client
+    await client.query(
+      "UPDATE RolePermissions SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE roleId = $1::uuid",
+      [id, deletedBy || null]
     );
-    await query("UPDATE TenantUsers SET roleId = NULL WHERE roleId = $1", [id], client);
-    await query(
-      "UPDATE Roles SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE id = $1",
-      [id, deletedBy || null],
-      client
+    await client.query("UPDATE TenantUsers SET roleId = NULL WHERE roleId = $1::uuid", [id]);
+    await client.query(
+      "UPDATE Roles SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE id = $1::uuid",
+      [id, deletedBy || null]
     );
   });
 }

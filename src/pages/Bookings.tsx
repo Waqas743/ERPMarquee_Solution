@@ -96,7 +96,7 @@ const Bookings = () => {
             <Printer size={20} />
             Print List
           </button>
-          {(user.role === 'admin' || user.permissions?.includes('menu.view')) && (
+          {(user.roleName === 'admin' || (!user.roleName && user.role === 'admin') || user.permissions?.includes('menu.view')) && (
             <button 
               onClick={() => navigate('/menu')}
               className="bg-white text-slate-700 border border-slate-200 px-6 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"

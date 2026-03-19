@@ -50,7 +50,7 @@ export async function listUsers(data: {
       LEFT JOIN Roles r ON tu.roleId::text = r.id::text
       LEFT JOIN TenantUsers cb ON tu.createdBy::text = cb.id::text
       LEFT JOIN TenantUsers mb ON tu.modifiedBy::text = mb.id::text
-      WHERE tu.tenantId = $1 AND COALESCE(tu.isDeleted, FALSE) = FALSE
+      WHERE tu.tenantId = $1::uuid AND COALESCE(tu.isDeleted, FALSE) = FALSE
     `;
   const params: any[] = [data.tenantId];
   if (data.search) {
@@ -58,11 +58,11 @@ export async function listUsers(data: {
     params.push(`%${data.search}%`, `%${data.search}%`, `%${data.search}%`);
   }
   if (data.roleId) {
-    queryText += ` AND tu.roleId = $${params.length + 1}`;
+    queryText += ` AND tu.roleId = $${params.length + 1}::uuid`;
     params.push(data.roleId);
   }
   if (data.branchId) {
-    queryText += ` AND tu.branchId = $${params.length + 1}`;
+    queryText += ` AND tu.branchId = $${params.length + 1}::uuid`;
     params.push(data.branchId);
   }
   if (data.isActive !== undefined && data.isActive !== "") {

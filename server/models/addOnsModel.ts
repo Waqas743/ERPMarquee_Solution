@@ -42,21 +42,21 @@ export async function getAddOn(id: string) {
     FROM AddOns a
     LEFT JOIN TenantUsers cb ON a.createdBy::text = cb.id::text
     LEFT JOIN TenantUsers mb ON a.modifiedBy::text = mb.id::text
-    WHERE a.id = $1 AND COALESCE(a.isDeleted, FALSE) = FALSE`, 
+    WHERE a.id = $1::uuid AND COALESCE(a.isDeleted, FALSE) = FALSE`, 
     [id]
   );
   return result.rows[0] || null;
 }
 
 export async function createAddOn(data: { tenantId: string; name: string; description?: string; price: number; isActive: boolean; createdBy?: string }) {
-  const tenant = await query("SELECT id FROM Tenants WHERE id = $1", [data.tenantId]);
+  const tenant = await query("SELECT id FROM Tenants WHERE id = $1::uuid", [data.tenantId]);
   if (tenant.rowCount === 0) {
     throw new Error("Invalid tenantId");
   }
   const result = await query(
     `
       INSERT INTO AddOns (tenantId, name, description, price, isActive, createdBy)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1::uuid, $2, $3, $4, $5, $6::uuid)
       RETURNING id
     `,
     [data.tenantId, data.name, data.description, data.price, data.isActive, data.createdBy || null]
@@ -69,8 +69,8 @@ export async function updateAddOn(id: string, data: { name: string; description?
     `
       UPDATE AddOns SET
         name = $1, description = $2, price = $3, isActive = $4,
-        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5
-      WHERE id = $6
+        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $5::uuid
+      WHERE id = $6::uuid
     `,
     [data.name, data.description, data.price, data.isActive, data.modifiedBy || null, id]
   );
@@ -78,8 +78,8 @@ export async function updateAddOn(id: string, data: { name: string; description?
 
 export async function deleteAddOn(id: string, deletedBy?: string) {
   await withTransaction(async (client) => {
-    await query("UPDATE BookingAddOns SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE addOnId = $1", [id, deletedBy || null], client);
-    await query("UPDATE PackageAddons SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE addOnId = $1", [id, deletedBy || null], client);
-    await query("UPDATE AddOns SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2, isActive = FALSE WHERE id = $1", [id, deletedBy || null], client);
+    await client.query("UPDATE BookingAddOns SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE addOnId = $1::uuid", [id, deletedBy || null]);
+    await client.query("UPDATE PackageAddons SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid WHERE addOnId = $1::uuid", [id, deletedBy || null]);
+    await client.query("UPDATE AddOns SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2::uuid, isActive = FALSE WHERE id = $1::uuid", [id, deletedBy || null]);
   });
 }

@@ -185,15 +185,24 @@ const Roles = () => {
                   >
                     <Edit2 size={18} />
                   </button>
-                  <button 
-                    onClick={() => setDeleteConfirmation({ isOpen: true, id: role.id })}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  {!role.isSystem && (
+                    <button 
+                      onClick={() => setDeleteConfirmation({ isOpen: true, id: role.id })}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">{role.name}</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">
+                {role.name}
+                {role.isSystem && (
+                  <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium align-middle">
+                    Default
+                  </span>
+                )}
+              </h3>
               <p className="text-sm text-slate-500 mb-4 line-clamp-2">{role.description || 'No description provided.'}</p>
               <div className="flex flex-wrap gap-2 mb-4">
                 <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
@@ -243,7 +252,8 @@ const Roles = () => {
                     type="text"
                     value={formData.name}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    disabled={editingRole?.isSystem}
+                    className={`w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${editingRole?.isSystem ? 'opacity-50 cursor-not-allowed' : ''}`}
                     placeholder="e.g. Branch Manager"
                   />
                 </div>
@@ -253,7 +263,8 @@ const Roles = () => {
                     type="text"
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    disabled={editingRole?.isSystem}
+                    className={`w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${editingRole?.isSystem ? 'opacity-50 cursor-not-allowed' : ''}`}
                     placeholder="Briefly describe this role's purpose"
                   />
                 </div>

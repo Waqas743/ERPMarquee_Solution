@@ -2,7 +2,8 @@ import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, MapPin, Phone, Mail, X, Trash2, Edit2, User, Users as UsersIcon } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const Branches = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -186,13 +187,15 @@ const Branches = () => {
           <h1 className="text-3xl font-bold text-slate-900">Branches</h1>
           <p className="text-slate-500">Manage individual marquee/catering locations.</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-colors"
-        >
-          <Plus size={20} />
-          Add Branch
-        </button>
+        {hasPermission('branches.create') && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-colors"
+          >
+            <Plus size={20} />
+            Add Branch
+          </button>
+        )}
       </div>
 
       {/* Desktop Table View */}
@@ -294,18 +297,22 @@ const Branches = () => {
                         >
                           <UsersIcon size={18} />
                         </button>
-                        <button 
-                          onClick={() => handleOpenModal(branch)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button 
-                          onClick={() => setDeleteConfirmation({ isOpen: true, id: branch.id })}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {hasPermission('branches.edit') && (
+                          <button 
+                            onClick={() => handleOpenModal(branch)}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                        )}
+                        {hasPermission('branches.delete') && (
+                          <button 
+                            onClick={() => setDeleteConfirmation({ isOpen: true, id: branch.id })}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -393,18 +400,22 @@ const Branches = () => {
                 >
                   <UsersIcon size={16} /> Staff
                 </button>
-                <button 
-                  onClick={() => handleOpenModal(branch)}
-                  className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Edit2 size={16} /> Edit
-                </button>
-                <button 
-                  onClick={() => setDeleteConfirmation({ isOpen: true, id: branch.id })}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
+                {hasPermission('branches.edit') && (
+                  <button 
+                    onClick={() => handleOpenModal(branch)}
+                    className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Edit2 size={16} /> Edit
+                  </button>
+                )}
+                {hasPermission('branches.delete') && (
+                  <button 
+                    onClick={() => setDeleteConfirmation({ isOpen: true, id: branch.id })}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -428,19 +439,16 @@ const Branches = () => {
                 {isSuperAdmin && (
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Tenant</label>
-                    <select
-                      required
+                    <SearchableSelect
+                      options={tenants.map((tenant: any) => ({ value: tenant.id, label: tenant.name }))}
                       value={formData.tenantId}
-                      onChange={e => {
-                        setFormData({ ...formData, tenantId: e.target.value });
-                        fetchManagers(e.target.value);
+                      onChange={(value) => {
+                        setFormData({ ...formData, tenantId: value });
+                        fetchManagers(value);
                       }}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      {tenants.map((tenant: any) => (
-                        <option key={tenant.id} value={tenant.id}>{tenant.name}</option>
-                      ))}
-                    </select>
+                      placeholder="Select Tenant"
+                      className="w-full"
+                    />
                   </div>
                 )}
                 <div className={`space-y-2 ${!isSuperAdmin ? 'md:col-span-2' : ''}`}>
@@ -455,11 +463,17 @@ const Branches = () => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Branch Manager</label>
-                  <select
-                    required
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: 'Select Manager' },
+                      ...managers.map((manager: any) => ({ 
+                        value: String(manager.id), 
+                        label: `${manager.fullName} (${manager.roleName || 'No Role'})` 
+                      }))
+                    ]}
                     value={formData.managerId}
-                    onChange={e => {
-                      const managerId = e.target.value;
+                    onChange={(value) => {
+                      const managerId = value;
                       const selectedManager = managers.find((m: any) => String(m.id) === String(managerId));
                       if (selectedManager) {
                         setFormData({ 
@@ -474,15 +488,9 @@ const Branches = () => {
                         setFormData({ ...formData, managerId });
                       }
                     }}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="">Select Manager</option>
-                    {managers.map((manager: any) => (
-                      <option key={manager.id} value={String(manager.id)}>
-                        {manager.fullName} ({manager.roleName || 'No Role'})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select Manager"
+                    className="w-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Phone</label>

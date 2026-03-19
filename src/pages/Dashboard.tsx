@@ -267,6 +267,7 @@ const Dashboard = () => {
         ) : (
           <>
             <StatCard icon={DollarSign} label="Total Sales" value={dashboardData.stats?.totalSales} prefix="Rs. " color="bg-emerald-600" />
+            <StatCard icon={CreditCard} label="Received Payment" value={dashboardData.stats?.receivedPayment || 0} prefix="Rs. " color="bg-indigo-600" />
             <StatCard icon={CreditCard} label="Pending Payments" value={dashboardData.stats?.pendingPayment || 0} prefix="Rs. " color="bg-rose-600" />
             <StatCard icon={CalendarIcon} label="Total Bookings" value={dashboardData.stats?.totalBookings} color="bg-indigo-600" />
             <StatCard icon={Clock} label="Pending Bookings" value={dashboardData.stats?.pendingBookings} color="bg-amber-500" />
@@ -286,27 +287,81 @@ const Dashboard = () => {
           {!isStaff && (
             <div className="space-y-8">
               {/* Charts */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
-                <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Sales (Rs.)</h3>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dashboardData.charts?.monthlySales}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis 
-                        dataKey="month" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#94a3b8', fontSize: 12 }}
-                        type="category"
-                      />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                      <Tooltip 
-                        cursor={{ fill: '#f8fafc' }}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      />
-                      <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+              <div className="space-y-8 mb-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
+                    <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Sales (Rs.)</h3>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={dashboardData.charts?.monthlySales}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="month" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 12 }}
+                            type="category"
+                          />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                          <Tooltip 
+                            cursor={{ fill: '#f8fafc' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                          />
+                          <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
+                    <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Pending Payments (Rs.)</h3>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={dashboardData.charts?.monthlyPendingPayments}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="month" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 12 }}
+                            type="category"
+                          />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                          <Tooltip 
+                            cursor={{ fill: '#f8fafc' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                          />
+                          <Bar dataKey="pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-8 w-full">
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
+                    <h3 className="text-lg font-bold text-slate-900 mb-6">Monthly Bookings</h3>
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={dashboardData.charts?.monthlyBookings}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="month" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 12 }}
+                            type="category"
+                          />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} allowDecimals={false} />
+                          <Tooltip 
+                            cursor={{ fill: '#f8fafc' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                          />
+                          <Bar dataKey="bookings" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 </div>
               </div>
 

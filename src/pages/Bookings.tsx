@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Filter, ChevronRight, MoreVertical, CheckCircle2, Clock, XCircle, AlertCircle, Download, FileText, Utensils, Printer } from 'lucide-react';
 import { format } from 'date-fns';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const Bookings = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -71,8 +72,10 @@ const Bookings = () => {
   const filteredBookings = bookings.filter((b: any) => {
     const bookingNumber = (b?.bookingNumber ?? '').toString().toLowerCase();
     const customerName = (b?.customerName ?? '').toString().toLowerCase();
+    const customerPhone = (b?.customerPhone ?? '').toString().toLowerCase();
+    const customerCnic = (b?.customerCnic ?? '').toString().toLowerCase();
     const term = (searchTerm ?? '').toLowerCase();
-    return bookingNumber.includes(term) || customerName.includes(term);
+    return bookingNumber.includes(term) || customerName.includes(term) || customerPhone.includes(term) || customerCnic.includes(term);
   });
 
   
@@ -105,13 +108,15 @@ const Bookings = () => {
               Menu Management
             </button>
           )}
-          <button 
-            onClick={() => navigate('/bookings/add')}
-            className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-          >
-            <Plus size={20} />
-            New Booking
-          </button>
+          {hasPermission('bookings.create') && (
+            <button 
+              onClick={() => navigate('/bookings/add')}
+              className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+            >
+              <Plus size={20} />
+              New Booking
+            </button>
+          )}
         </div>
       </div>
 
@@ -120,37 +125,37 @@ const Bookings = () => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input 
             type="text"
-            placeholder="Search by Booking ID or Customer Name..."
+            placeholder="Search by ID, Name, CNIC, or Contact..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
           />
         </div>
         <div className="relative">
-          <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <select 
+          <SearchableSelect
+            options={[
+              { value: '', label: 'All Branches' },
+              ...branches.map((b: any) => ({ value: b.id, label: b.name }))
+            ]}
             value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none shadow-sm"
-          >
-            <option value="">All Branches</option>
-            {branches.map((b: any) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+            onChange={(value) => setBranchFilter(value)}
+            placeholder="All Branches"
+            className="w-full shadow-sm"
+          />
         </div>
         <div className="relative">
-          <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <select 
+          <SearchableSelect
+            options={[
+              { value: '', label: 'All Statuses' },
+              { value: 'Pending', label: 'Pending' },
+              { value: 'Approved', label: 'Approved' },
+              { value: 'Rejected', label: 'Rejected' }
+            ]}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none shadow-sm"
-          >
-            <option value="">All Statuses</option>
-            <option value="Pending">Pending</option>
-            <option value="Approved">Approved</option>
-            <option value="Rejected">Rejected</option>
-          </select>
+            onChange={(value) => setStatusFilter(value)}
+            placeholder="All Statuses"
+            className="w-full shadow-sm"
+          />
         </div>
       </div>
 

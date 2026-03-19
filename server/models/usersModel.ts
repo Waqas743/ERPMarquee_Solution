@@ -72,6 +72,22 @@ export async function listUsers(data: {
   return (await query(queryText, params)).rows;
 }
 
+export async function getTenantAdmins(tenantId: string) {
+  const result = await query(
+    `
+      SELECT tu.id
+      FROM TenantUsers tu
+      LEFT JOIN Roles r ON tu.roleId::text = r.id::text
+      WHERE tu.tenantId = $1::uuid 
+        AND (tu.role = 'admin' OR r.name ILIKE 'admin') 
+        AND COALESCE(tu.isDeleted, FALSE) = FALSE 
+        AND tu.isActive = TRUE
+    `,
+    [tenantId]
+  );
+  return result.rows.map((row: any) => row.id);
+}
+
 export async function getUserById(id: string) {
   const result = await query(
     `

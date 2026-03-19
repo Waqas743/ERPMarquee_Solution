@@ -28,6 +28,7 @@ export async function getDashboardStats(tenantId: string, branchId?: string, use
   const bookings = (await query(bookingQuery, params)).rows as any[];
   
   let totalSales = 0;
+  let receivedPayment = 0;
   let pendingPayment = 0;
   let totalBookings = bookings.length;
   let confirmedBookings = 0;
@@ -52,6 +53,7 @@ export async function getDashboardStats(tenantId: string, branchId?: string, use
       const gTotal = Number(b.grandTotal) || 0;
       const pAmount = Number(b.paidAmount) || 0;
       totalSales += gTotal;
+      receivedPayment += pAmount;
       pendingPayment += (gTotal - pAmount);
       
       // Only count invoices for approved bookings
@@ -72,6 +74,7 @@ export async function getDashboardStats(tenantId: string, branchId?: string, use
       const gTotal = Number(b.grandTotal) || 0;
       const pAmount = Number(b.paidAmount) || 0;
       totalSales += gTotal;
+      receivedPayment += pAmount;
       pendingPayment += (gTotal - pAmount);
       
       totalInvoices++;
@@ -84,6 +87,7 @@ export async function getDashboardStats(tenantId: string, branchId?: string, use
   });
   return {
     totalSales,
+    receivedPayment,
     pendingPayment,
     totalBookings,
     assignedBookings,
@@ -218,31 +222,118 @@ export async function getDashboardInvoices(tenantId: string, branchId?: string, 
 }
 
 export async function getDashboardCharts(tenantId: string, branchId?: string, userId?: string) {
-  let queryText = `
+  let salesQuery = `
+    SELECT 
+      TO_CHAR(DATE(bp.paidDate), 'Mon') as month,
+      EXTRACT(YEAR FROM DATE(bp.paidDate)) as year,
+      SUM(bp.amount) as total
+    FROM BookingPayments bp
+    JOIN Bookings b ON bp.bookingId::text = b.id::text
+    WHERE b.tenantId = $1::uuid 
+      AND bp.status = 'Paid' 
+      AND DATE(bp.paidDate) >= CURRENT_DATE - INTERVAL '12 months'
+      AND COALESCE(bp.isDeleted, FALSE) = FALSE 
+      AND b.status IN ('Approved', 'Confirmed', 'Completed') 
+      AND COALESCE(b.isDeleted, FALSE) = FALSE
+  `;
+
+  let bookingsQuery = `
     SELECT 
       TO_CHAR(DATE(b.eventDate), 'Mon') as month,
       EXTRACT(YEAR FROM DATE(b.eventDate)) as year,
-      SUM(b.grandTotal) as total
+      COUNT(b.id) as bookings
     FROM Bookings b
-    WHERE b.tenantId = $1::uuid AND b.status IN ('Approved', 'Confirmed', 'Completed') AND COALESCE(b.isDeleted, FALSE) = FALSE
+    WHERE b.tenantId = $1::uuid 
+      AND DATE(b.eventDate) >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months'
+      AND DATE(b.eventDate) < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '12 months'
+      AND b.status IN ('Approved', 'Confirmed', 'Completed') 
+      AND COALESCE(b.isDeleted, FALSE) = FALSE
   `;
+
+  let pendingQuery = `
+    SELECT 
+      TO_CHAR(DATE(b.eventDate), 'Mon') as month,
+      EXTRACT(YEAR FROM DATE(b.eventDate)) as year,
+      SUM(b.grandTotal - COALESCE((
+        SELECT SUM(amount) FROM BookingPayments bp WHERE bp.bookingId::text = b.id::text AND bp.status = 'Paid' AND COALESCE(bp.isDeleted, FALSE) = FALSE
+      ), 0)) as pending
+    FROM Bookings b
+    WHERE b.tenantId = $1::uuid 
+      AND DATE(b.eventDate) >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '12 months'
+      AND DATE(b.eventDate) < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '12 months'
+      AND b.status IN ('Approved', 'Confirmed', 'Completed') 
+      AND COALESCE(b.isDeleted, FALSE) = FALSE
+  `;
+
   const params: any[] = [tenantId];
   if (branchId) {
     params.push(branchId);
-    queryText += ` AND b.branchId = $${params.length}::uuid`;
+    salesQuery += ` AND b.branchId = $${params.length}::uuid`;
+    bookingsQuery += ` AND b.branchId = $${params.length}::uuid`;
+    pendingQuery += ` AND b.branchId = $${params.length}::uuid`;
   }
   if (userId) {
     params.push(userId);
-    queryText += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
+    salesQuery += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
+    bookingsQuery += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
+    pendingQuery += ` AND (b.createdBy::text = $${params.length} OR b.assignedTo::text = $${params.length})`;
   }
-  queryText += ` GROUP BY TO_CHAR(DATE(b.eventDate), 'Mon'), EXTRACT(MONTH FROM DATE(b.eventDate)), EXTRACT(YEAR FROM DATE(b.eventDate))
-                 ORDER BY EXTRACT(YEAR FROM DATE(b.eventDate)), EXTRACT(MONTH FROM DATE(b.eventDate))`;
   
-  const dbResult = (await query(queryText, params)).rows;
-  const monthlySales = dbResult.map(r => ({
-    month: `${r.month} ${r.year}`, // Include year to differentiate e.g. "Mar 2025" vs "Mar 2026"
-    total: Number(r.total) || 0
-  })).filter(item => item.total > 0);
+  salesQuery += ` GROUP BY TO_CHAR(DATE(bp.paidDate), 'Mon'), EXTRACT(MONTH FROM DATE(bp.paidDate)), EXTRACT(YEAR FROM DATE(bp.paidDate))`;
+  bookingsQuery += ` GROUP BY TO_CHAR(DATE(b.eventDate), 'Mon'), EXTRACT(MONTH FROM DATE(b.eventDate)), EXTRACT(YEAR FROM DATE(b.eventDate))`;
+  pendingQuery += ` GROUP BY TO_CHAR(DATE(b.eventDate), 'Mon'), EXTRACT(MONTH FROM DATE(b.eventDate)), EXTRACT(YEAR FROM DATE(b.eventDate))`;
   
-  return { monthlySales };
+  const [salesResult, bookingsResult, pendingResult] = await Promise.all([
+    query(salesQuery, params),
+    query(bookingsQuery, params),
+    query(pendingQuery, params)
+  ]);
+  
+  // Ensure we always return the last 12 months even if some months have 0 sales
+  const monthlySales = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const monthStr = d.toLocaleString('en-US', { month: 'short' });
+    const yearNum = d.getFullYear();
+    const label = `${monthStr} ${yearNum}`;
+    
+    const saleFound = salesResult.rows.find(r => r.month === monthStr && Number(r.year) === yearNum);
+    const bookingFound = bookingsResult.rows.find(r => r.month === monthStr && Number(r.year) === yearNum);
+    
+    monthlySales.push({
+      month: label,
+      total: saleFound ? Number(saleFound.total) || 0 : 0,
+      bookings: bookingFound ? Number(bookingFound.bookings) || 0 : 0,
+      revenue: saleFound ? Number(saleFound.total) || 0 : 0 // added revenue for Reports.tsx compatibility
+    });
+  }
+
+  // Next 12 months (including current) for Bookings and Pending Payments charts
+  const monthlyBookings = [];
+  const monthlyPendingPayments = [];
+  for (let i = -1; i < 11; i++) {
+    const d = new Date();
+    d.setMonth(d.getMonth() + i);
+    const monthStr = d.toLocaleString('en-US', { month: 'short' });
+    const yearNum = d.getFullYear();
+    const label = `${monthStr} ${yearNum}`;
+    
+    const bookingFound = bookingsResult.rows.find(r => r.month === monthStr && Number(r.year) === yearNum);
+    const pendingFound = pendingResult.rows.find(r => r.month === monthStr && Number(r.year) === yearNum);
+    
+    monthlyBookings.push({
+      month: label,
+      name: label,
+      bookings: bookingFound ? Number(bookingFound.bookings) || 0 : 0
+    });
+
+    monthlyPendingPayments.push({
+      month: label,
+      name: label,
+      pending: pendingFound ? Number(pendingFound.pending) || 0 : 0
+    });
+  }
+  
+  return { monthlySales, monthlyBookings, monthlyPendingPayments };
 }

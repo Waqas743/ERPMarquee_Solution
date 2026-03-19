@@ -15,12 +15,26 @@ export async function listRoles(req: Request, res: Response) {
   
   const auth = (req as any).auth;
   
-  // Only admin should be able to view roles now
-  if (auth.roleName !== "admin") {
-    return res.status(403).json({ message: "Only Admins can view roles" });
+  // Allow admin, director, and manager to view roles
+  if (!["admin", "director", "manager"].includes(auth.roleName)) {
+    return res.status(403).json({ message: "Only Admins, Directors, and Managers can view roles" });
   }
 
-  const roles = await getRolesWithPermissions(tenantId);
+  let roles = await getRolesWithPermissions(tenantId);
+  
+  // Filter out admin roles if the requester is a director
+  if (auth.roleName === "director") {
+    roles = roles.filter((r: any) => (r.name || "").toLowerCase() !== "admin");
+  }
+  
+  // Filter out admin and director roles if the requester is a manager
+  if (auth.roleName === "manager") {
+    roles = roles.filter((r: any) => {
+      const rName = (r.name || "").toLowerCase();
+      return rName !== "admin" && rName !== "director";
+    });
+  }
+
   res.json(roles);
 }
 

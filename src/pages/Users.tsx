@@ -2,7 +2,8 @@ import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, User, Mail, Shield, X, Trash2, Edit2, Building2, Key, Phone, MapPin, Globe, PhoneCall } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const Users = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -213,13 +214,15 @@ const Users = () => {
           <h1 className="text-3xl font-bold text-slate-900">User Management</h1>
           <p className="text-slate-500">Manage your staff and administrators.</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-colors"
-        >
-          <Plus size={20} />
-          Add User
-        </button>
+        {hasPermission('users.create') && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto justify-center"
+          >
+            <Plus size={20} />
+            Add User
+          </button>
+        )}
       </div>
 
       {/* Desktop Table View */}
@@ -236,35 +239,37 @@ const Users = () => {
             />
           </div>
           <div className="flex items-center gap-3">
-            <select
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Roles' },
+                ...roles.map((r: any) => ({ value: r.id, label: r.name }))
+              ]}
               value={filterRole}
-              onChange={e => setFilterRole(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">All Roles</option>
-              {roles.map((r: any) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-            <select
+              onChange={(value) => setFilterRole(value)}
+              placeholder="All Roles"
+              className="w-40"
+            />
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Branches' },
+                ...branches.map((b: any) => ({ value: b.id, label: b.name }))
+              ]}
               value={filterBranch}
-              onChange={e => setFilterBranch(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">All Branches</option>
-              {branches.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-            <select
+              onChange={(value) => setFilterBranch(value)}
+              placeholder="All Branches"
+              className="w-48"
+            />
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Status' },
+                { value: 'true', label: 'Active' },
+                { value: 'false', label: 'Inactive' }
+              ]}
               value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
+              onChange={(value) => setFilterStatus(value)}
+              placeholder="All Status"
+              className="w-36"
+            />
           </div>
         </div>
 
@@ -342,18 +347,24 @@ const Users = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => handleOpenModal(u)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button 
-                          onClick={() => setDeleteConfirmation({ isOpen: true, id: u.id })}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {hasPermission('users.edit') && (
+                          <button 
+                            onClick={() => handleOpenModal(u)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Edit User"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        )}
+                        {hasPermission('users.delete') && (
+                          <button 
+                            onClick={() => setDeleteConfirmation({ isOpen: true, id: u.id })}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete User"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -378,35 +389,37 @@ const Users = () => {
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <select
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Branches' },
+                ...branches.map((b: any) => ({ value: b.id, label: b.name }))
+              ]}
               value={filterBranch}
-              onChange={e => setFilterBranch(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
-            >
-              <option value="">All Branches</option>
-              {branches.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-            <select
+              onChange={(value) => setFilterBranch(value)}
+              placeholder="All Branches"
+              className="w-full shadow-sm"
+            />
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Roles' },
+                ...roles.map((r: any) => ({ value: r.id, label: r.name }))
+              ]}
               value={filterRole}
-              onChange={e => setFilterRole(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
-            >
-              <option value="">All Roles</option>
-              {roles.map((r: any) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-            <select
+              onChange={(value) => setFilterRole(value)}
+              placeholder="All Roles"
+              className="w-full shadow-sm"
+            />
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Status' },
+                { value: 'true', label: 'Active' },
+                { value: 'false', label: 'Inactive' }
+              ]}
               value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
-            >
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
+              onChange={(value) => setFilterStatus(value)}
+              placeholder="All Status"
+              className="w-full shadow-sm"
+            />
           </div>
         </div>
 
@@ -473,18 +486,22 @@ const Users = () => {
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button 
-                  onClick={() => handleOpenModal(u)}
-                  className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Edit2 size={16} /> Edit
-                </button>
-                <button 
-                  onClick={() => setDeleteConfirmation({ isOpen: true, id: u.id })}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
+                {hasPermission('users.edit') && (
+                  <button 
+                    onClick={() => handleOpenModal(u)}
+                    className="flex-1 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Edit2 size={16} /> Edit
+                  </button>
+                )}
+                {hasPermission('users.delete') && (
+                  <button 
+                    onClick={() => setDeleteConfirmation({ isOpen: true, id: u.id })}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -616,33 +633,30 @@ const Users = () => {
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">User Role</label>
-                  <select
-                    required
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: 'Select Role' },
+                      ...roles.map((r: any) => ({ value: String(r.id), label: r.name }))
+                    ]}
                     value={formData.roleId}
-                    onChange={e => setFormData({ ...formData, roleId: e.target.value })}
-                    disabled={editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director')}
-                    className={`w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    <option value="">Select Role</option>
-                    {roles.map((r: any) => (
-                      <option key={r.id} value={String(r.id)}>{r.name}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData({ ...formData, roleId: value })}
+                    placeholder="Select Role"
+                    className={`w-full ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Branch Assignment</label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: 'All Branches (HQ)' },
+                      ...branches.map((b: any) => ({ value: String(b.id), label: b.name }))
+                    ]}
                     value={formData.branchId}
-                    onChange={e => setFormData({ ...formData, branchId: e.target.value })}
-                    disabled={editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director')}
-                    className={`w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    <option value="">All Branches (HQ)</option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={String(b.id)}>{b.name}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData({ ...formData, branchId: value })}
+                    placeholder="All Branches (HQ)"
+                    className={`w-full ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
+                  />
                 </div>
 
                 <div className="space-y-2 md:col-span-2">

@@ -7,7 +7,8 @@ import {
   Clock, MapPin, Phone, Mail, FileText, Trash2, Utensils, Check, X
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const AddBooking = () => {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ const AddBooking = () => {
     eventDate: '',
     slot: 'Morning',
     guestCount: '',
+    perHeadPrice: 0,
     
     hallRent: 0,
     decorationCharges: 0,
@@ -121,6 +123,7 @@ const AddBooking = () => {
               eventDate: booking.eventDate,
               slot: booking.slot,
               guestCount: booking.guestCount || '',
+              perHeadPrice: booking.guestCount ? (Number(booking.cateringCharges) / Number(booking.guestCount)) : 0,
               hallRent: booking.hallRent || 0,
               decorationCharges: booking.decorationCharges || 0,
               cateringCharges: booking.cateringCharges || 0,
@@ -176,7 +179,7 @@ const AddBooking = () => {
 
   const handlePackageChange = async (pkgId: string) => {
     if (!pkgId) {
-      setFormData(prev => ({ ...prev, packageId: '', cateringCharges: 0, menuItems: [], selectedAddOns: [] }));
+      setFormData(prev => ({ ...prev, packageId: '', perHeadPrice: 0, cateringCharges: 0, menuItems: [], selectedAddOns: [] }));
       return;
     }
     
@@ -204,6 +207,7 @@ const AddBooking = () => {
       setFormData(prev => ({
         ...prev,
         packageId: pkgId,
+        perHeadPrice: pkg.basePrice || 0,
         cateringCharges: cateringTotal || pkg.basePrice || 0,
         menuItems: items,
         selectedAddOns: pkgAddOns
@@ -257,15 +261,14 @@ const AddBooking = () => {
 
   const recalculateCatering = () => {
     const guests = Number(formData.guestCount) || 0;
-    const selectedPkg = packages.find((p: any) => String(p.id) === String(formData.packageId)) as any;
-    const basePrice = selectedPkg?.basePrice || 0;
-    const total = basePrice * guests;
+    const perHead = Number(formData.perHeadPrice) || 0;
+    const total = perHead * guests;
     setFormData(prev => ({ ...prev, cateringCharges: total }));
   };
 
   useEffect(() => {
     recalculateCatering();
-  }, [formData.guestCount, formData.packageId]);
+  }, [formData.guestCount, formData.perHeadPrice]);
 
   const calculateTotals = () => {
     const guests = Number(formData.guestCount) || 0;
@@ -687,59 +690,56 @@ const AddBooking = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Menu Package (Optional)</label>
-                <select 
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'No Package (Custom)' },
+                    ...packages.map((p: any) => ({
+                      value: p.id,
+                      label: `${p.name} (Rs. ${Number(p.basePrice)?.toLocaleString()} per head)`
+                    }))
+                  ]}
                   value={formData.packageId}
-                  onChange={(e) => handlePackageChange(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                >
-                  <option value="">No Package (Custom)</option>
-                  {packages.map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.name} (Rs. {p.basePrice?.toLocaleString()})</option>
-                  ))}
-                </select>
+                  onChange={(value) => handlePackageChange(value)}
+                  placeholder="Select Package"
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Event Type</label>
-                <select 
+                <SearchableSelect
+                  options={[
+                    { value: 'Mehndi', label: 'Mehndi' },
+                    { value: 'Barat', label: 'Barat' },
+                    { value: 'Walima', label: 'Walima' },
+                    { value: 'Birthday', label: 'Birthday' },
+                    { value: 'Corporate', label: 'Corporate' },
+                    { value: 'Other', label: 'Other' }
+                  ]}
                   value={formData.eventType}
-                  onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                >
-                  <option value="">Select Event Type</option>
-                  <option value="Mehndi">Mehndi</option>
-                  <option value="Barat">Barat</option>
-                  <option value="Walima">Walima</option>
-                  <option value="Birthday">Birthday</option>
-                  <option value="Corporate">Corporate</option>
-                  <option value="Other">Other</option>
-                </select>
+                  onChange={(value) => setFormData({ ...formData, eventType: value })}
+                  placeholder="Select Event Type"
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Branch</label>
-                <select 
+                <SearchableSelect
+                  options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
                   value={formData.branchId}
-                  onChange={(e) => setFormData({ ...formData, branchId: e.target.value, hallId: '' })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                >
-                  <option value="">Select Branch</option>
-                  {branches.map((b: any) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({ ...formData, branchId: value, hallId: '' })}
+                  placeholder="Select Branch"
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Hall</label>
-                <select 
+                <SearchableSelect
+                  options={halls.map((h: any) => ({ value: h.id, label: h.hallName }))}
                   value={formData.hallId}
-                  onChange={(e) => setFormData({ ...formData, hallId: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  disabled={!formData.branchId}
-                >
-                  <option value="">Select Hall</option>
-                  {halls.map((h: any) => (
-                    <option key={h.id} value={h.id}>{h.hallName}</option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormData({ ...formData, hallId: value })}
+                  placeholder="Select Hall"
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Event Date</label>
@@ -1005,7 +1005,20 @@ const AddBooking = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Catering Charges</label>
+                  <label className="text-sm font-semibold text-slate-700">Discount Per Head Price</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">Rs.</span>
+                    <input 
+                      type="number"
+                      value={formData.perHeadPrice}
+                      onChange={(e) => setFormData({ ...formData, perHeadPrice: Number(e.target.value) })}
+                      className="w-full pl-12 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Total Catering Charges</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">Rs.</span>
                     <input 
@@ -1323,20 +1336,29 @@ const AddBooking = () => {
         </button>
         
         {step === 5 ? (
-          <button 
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex items-center gap-2 px-6 sm:px-10 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 text-sm sm:text-base"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                {id ? 'Update Booking' : 'Confirm & Create'}
-                <CheckCircle2 size={20} />
-              </>
-            )}
-          </button>
+          hasPermission('bookings.create') ? (
+            <button 
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center gap-2 px-6 sm:px-10 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 text-sm sm:text-base"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  {id ? 'Update Booking' : 'Confirm & Create'}
+                  <CheckCircle2 size={20} />
+                </>
+              )}
+            </button>
+          ) : (
+            <button 
+              disabled
+              className="flex items-center gap-2 px-6 sm:px-10 py-3 bg-slate-300 text-slate-500 rounded-xl font-bold cursor-not-allowed text-sm sm:text-base"
+            >
+              No Permission to Create
+            </button>
+          )
         ) : (
           <button 
             onClick={handleNext}

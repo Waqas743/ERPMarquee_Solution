@@ -110,20 +110,42 @@ export async function deleteRole(id: string, deletedBy?: string) {
 
 export function getPermissionsList() {
   return [
-    { key: "dashboard.view", label: "View Dashboard", category: "General" },
+    { key: "dashboard.view", label: "View Dashboard", category: "Dashboard" },
+
     { key: "branches.view", label: "View Branches", category: "Inventory & Branches" },
+    { key: "branches.create", label: "Create Branches", category: "Inventory & Branches" },
     { key: "branches.edit", label: "Manage Branches", category: "Inventory & Branches" },
-    { key: "users.view", label: "View Users", category: "Staff Management" },
-    { key: "users.edit", label: "Manage Users", category: "Staff Management" },
-    { key: "roles.view", label: "View Roles", category: "Staff Management" },
-    { key: "roles.edit", label: "Manage Roles", category: "Staff Management" },
+    { key: "branches.delete", label: "Delete Branches", category: "Inventory & Branches" },
+
     { key: "halls.view", label: "View Halls", category: "Marriage Hall" },
+    { key: "halls.create", label: "Create Halls", category: "Marriage Hall" },
     { key: "halls.edit", label: "Manage Halls", category: "Marriage Hall" },
+    { key: "halls.delete", label: "Delete Halls", category: "Marriage Hall" },
+
     { key: "calendar.view", label: "View Booking Calendar", category: "Marriage Hall" },
     { key: "calendar.edit", label: "Manage Calendar Blocks", category: "Marriage Hall" },
+
+    { key: "bookings.view", label: "View Bookings", category: "Bookings" },
+    { key: "bookings.create", label: "Create Bookings", category: "Bookings" },
+    { key: "bookings.edit", label: "Manage Bookings", category: "Bookings" },
+    { key: "bookings.delete", label: "Delete Bookings", category: "Bookings" },
+
+    { key: "approvals.view", label: "View Approvals", category: "Bookings" },
+    { key: "approvals.edit", label: "Manage Approvals", category: "Bookings" },
+
     { key: "menu.view", label: "View Menu & Packages", category: "Catering & Menu" },
+    { key: "menu.create", label: "Create Menu & Packages", category: "Catering & Menu" },
     { key: "menu.edit", label: "Manage Menu & Packages", category: "Catering & Menu" },
-    { key: "settings.view", label: "View Settings", category: "General" },
-    { key: "settings.edit", label: "Manage Settings", category: "General" },
+    { key: "menu.delete", label: "Delete Menu & Packages", category: "Catering & Menu" },
+
+    { key: "users.view", label: "View Users", category: "Staff Management" },
+    { key: "users.create", label: "Create Users", category: "Staff Management" },
+    { key: "users.edit", label: "Manage Users", category: "Staff Management" },
+    { key: "users.delete", label: "Delete Users", category: "Staff Management" },
+
+    { key: "roles.view", label: "View Roles", category: "Staff Management" },
+    { key: "roles.create", label: "Create Roles", category: "Staff Management" },
+    { key: "roles.edit", label: "Manage Roles", category: "Staff Management" },
+    { key: "roles.delete", label: "Delete Roles", category: "Staff Management" }
   ];
 }

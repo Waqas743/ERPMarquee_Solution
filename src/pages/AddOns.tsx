@@ -6,7 +6,7 @@ import {
   Settings, DollarSign, FileText
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
 
 const AddOns = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -127,13 +127,15 @@ const AddOns = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Add-ons Management</h1>
           <p className="text-sm sm:text-base text-slate-500">Manage extra services and items for events.</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
-        >
-          <Plus size={20} />
-          Create Add-on
-        </button>
+        {hasPermission('menu.create') && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
+          >
+            <Plus size={20} />
+            Create Add-on
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -146,12 +148,16 @@ const AddOns = () => {
             <div key={addOn.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col group overflow-hidden">
               <div className="p-6 border-b border-slate-100 relative">
                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => handleOpenModal(addOn)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                    <Edit2 size={16} />
-                  </button>
-                  <button onClick={() => setDeleteConfirmation({ isOpen: true, id: addOn.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={16} />
-                  </button>
+                  {hasPermission('menu.edit') && (
+                    <button onClick={() => handleOpenModal(addOn)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                      <Edit2 size={16} />
+                    </button>
+                  )}
+                  {hasPermission('menu.delete') && (
+                    <button onClick={() => setDeleteConfirmation({ isOpen: true, id: addOn.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 mb-4">
                   <PlusCircle size={24} />
@@ -189,9 +195,15 @@ const AddOns = () => {
               </div>
 
               <div className="p-6 bg-slate-50 border-t border-slate-100">
-                <button onClick={() => handleOpenModal(addOn)} className="w-full py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 hover:bg-slate-100 transition-colors text-sm">
-                  Edit Details
-                </button>
+                {hasPermission('menu.edit') ? (
+                  <button onClick={() => handleOpenModal(addOn)} className="w-full py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 hover:bg-slate-100 transition-colors text-sm">
+                    Edit Details
+                  </button>
+                ) : (
+                  <button disabled className="w-full py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-400 cursor-not-allowed text-sm">
+                    View Only
+                  </button>
+                )}
               </div>
             </div>
           ))

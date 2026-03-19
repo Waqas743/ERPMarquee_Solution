@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Search, Building, MapPin, Users, DollarSign, Clock, ShieldCheck, X, Trash2, Edit2, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const Halls = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -151,13 +152,15 @@ const Halls = () => {
           <h1 className="text-3xl font-bold text-slate-900">Marriage Halls</h1>
           <p className="text-slate-500">Manage your venues and their configurations.</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-colors"
-        >
-          <Plus size={20} />
-          Add Hall
-        </button>
+        {hasPermission('halls.create') && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 hover:bg-indigo-700 transition-colors"
+          >
+            <Plus size={20} />
+            Add Hall
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -174,18 +177,22 @@ const Halls = () => {
                     <Building size={24} />
                   </div>
                   <div className="flex items-center gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => handleOpenModal(hall)}
-                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    <button 
-                      onClick={() => setDeleteConfirmation({ isOpen: true, id: hall.id })}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    {hasPermission('halls.edit') && (
+                      <button 
+                        onClick={() => handleOpenModal(hall)}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                    )}
+                    {hasPermission('halls.delete') && (
+                      <button 
+                        onClick={() => setDeleteConfirmation({ isOpen: true, id: hall.id })}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -268,30 +275,29 @@ const Halls = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-semibold text-slate-700">Branch</label>
-                  <select
-                    required
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: 'Select a Branch' },
+                      ...branches.map((b: any) => ({ value: String(b.id), label: b.name }))
+                    ]}
                     value={formData.branchId}
-                    onChange={e => setFormData({ ...formData, branchId: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="">Select a Branch</option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData({ ...formData, branchId: value })}
+                    placeholder="Select a Branch"
+                    className="w-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Hall Manager</label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: 'Select a Manager (Optional)' },
+                      ...staff.map((s: any) => ({ value: String(s.id), label: s.fullName }))
+                    ]}
                     value={formData.hallManagerId}
-                    onChange={e => setFormData({ ...formData, hallManagerId: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="">Select a Manager (Optional)</option>
-                    {staff.map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.fullName}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData({ ...formData, hallManagerId: value })}
+                    placeholder="Select a Manager (Optional)"
+                    className="w-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Hall Name</label>

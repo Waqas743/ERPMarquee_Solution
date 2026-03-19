@@ -4,12 +4,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Menu, Bell, Search, CheckCircle2 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
+import { getCurrentUser } from '../utils/session';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+  const user = getCurrentUser() || {};
 
   useEffect(() => {
     fetchNotifications();

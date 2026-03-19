@@ -2,6 +2,7 @@ import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, MoreVertical, MapPin, Phone, Mail, X, Trash2, Edit2, User, CreditCard } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const Tenants = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -466,15 +467,17 @@ const Tenants = () => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Business Type</label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: 'Hall', label: 'Hall' },
+                      { value: 'Catering', label: 'Catering' },
+                      { value: 'Both', label: 'Both' }
+                    ]}
                     value={formData.type}
-                    onChange={e => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="Hall">Hall</option>
-                    <option value="Catering">Catering</option>
-                    <option value="Both">Both</option>
-                  </select>
+                    onChange={(value) => setFormData({ ...formData, type: value })}
+                    placeholder="Select Type"
+                    className="w-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Contact Person</label>
@@ -515,15 +518,13 @@ const Tenants = () => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Subscription Plan</label>
-                  <select
-                    value={formData.subscriptionPlanId}
-                    onChange={e => setFormData({ ...formData, subscriptionPlanId: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    {plans.map((plan: any) => (
-                      <option key={plan.id} value={plan.id}>{plan.name} - ${plan.priceMonthly}/mo</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={plans.map((plan: any) => ({ value: String(plan.id), label: `${plan.name} - $${plan.priceMonthly}/mo` }))}
+                    value={String(formData.subscriptionPlanId || '')}
+                    onChange={(value) => setFormData({ ...formData, subscriptionPlanId: value })}
+                    placeholder="Select Plan"
+                    className="w-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Subscription Start Date</label>

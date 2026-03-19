@@ -6,7 +6,8 @@ import {
   ChevronRight, Info, PlusCircle, MinusCircle, Filter
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const Packages = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -200,15 +201,17 @@ const Packages = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Event Packages</h1>
-          <p className="text-sm sm:text-base text-slate-500">Create and manage predefined event bundles.</p>
+          <p className="text-sm sm:text-base text-slate-500">Manage standard packages, menus, and add-ons.</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
-        >
-          <Plus size={20} />
-          Create Package
-        </button>
+        {hasPermission('menu.create') && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
+          >
+            <Plus size={20} />
+            Create Package
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -221,12 +224,16 @@ const Packages = () => {
             <div key={pkg.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col group overflow-hidden">
               <div className="p-6 border-b border-slate-100 relative">
                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => handleOpenModal(pkg)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                    <Edit2 size={16} />
-                  </button>
-                  <button onClick={() => setDeleteConfirmation({ isOpen: true, id: pkg.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={16} />
-                  </button>
+                  {hasPermission('menu.edit') && (
+                    <button onClick={() => handleOpenModal(pkg)} title="Edit" className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                      <Edit2 size={16} />
+                    </button>
+                  )}
+                  {hasPermission('menu.delete') && (
+                    <button onClick={() => setDeleteConfirmation({ isOpen: true, id: pkg.id })} title="Delete" className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 mb-4">
                   <Package size={24} />
@@ -273,9 +280,15 @@ const Packages = () => {
               </div>
 
               <div className="p-6 bg-slate-50 border-t border-slate-100">
-                <button onClick={() => handleOpenModal(pkg)} className="w-full py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 hover:bg-slate-100 transition-colors text-sm">
-                  View Details
-                </button>
+                {hasPermission('menu.edit') ? (
+                  <button onClick={() => handleOpenModal(pkg)} className="w-full py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 hover:bg-slate-100 transition-colors text-sm">
+                    View Details
+                  </button>
+                ) : (
+                  <button disabled className="w-full py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-400 cursor-not-allowed text-sm">
+                    View Only
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -318,16 +331,16 @@ const Packages = () => {
                   <h3 className="text-lg font-bold text-slate-900">Included Menu Items</h3>
                   <div className="flex items-center gap-2">
                     <Filter size={16} className="text-slate-400" />
-                    <select 
+                    <SearchableSelect
+                      options={[
+                        { value: 'all', label: 'All Categories' },
+                        ...categories.map(cat => ({ value: String(cat.id), label: cat.name }))
+                      ]}
                       value={selectedCategoryTab}
-                      onChange={(e) => setSelectedCategoryTab(e.target.value)}
-                      className="text-sm border-none bg-slate-100 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      <option value="all">All Categories</option>
-                      {categories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
+                      onChange={(value) => setSelectedCategoryTab(value)}
+                      placeholder="All Categories"
+                      className="w-48"
+                    />
                   </div>
                 </div>
                 
@@ -423,15 +436,16 @@ const Packages = () => {
                 <div className="space-y-3">
                   {formData.addOns.map((addon, index) => (
                     <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <select 
-                        required 
-                        value={addon.addOnId} 
-                        onChange={e => updateAddon(index, 'addOnId', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="">Select Add-on</option>
-                        {availableAddOns.map(ao => <option key={ao.id} value={ao.id}>{ao.name} (Rs. {ao.price} / guest)</option>)}
-                      </select>
+                      <SearchableSelect
+                        options={[
+                          { value: '', label: 'Select Add-on' },
+                          ...availableAddOns.map(ao => ({ value: String(ao.id), label: `${ao.name} (Rs. ${ao.price} / guest)` }))
+                        ]}
+                        value={addon.addOnId}
+                        onChange={(value) => updateAddon(index, 'addOnId', value)}
+                        placeholder="Select Add-on"
+                        className="flex-1"
+                      />
                       <button type="button" onClick={() => removeAddon(index)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <MinusCircle size={20} />
                       </button>

@@ -97,6 +97,10 @@ export async function listBookings(data: {
       mu.fullName as "modifiedByName",
       au.fullName as "assignedToName",
       c.name as "customerName", 
+      c.phone as "customerPhone",
+      c.email as "customerEmail",
+      c.cnic as "customerCnic",
+      c.address as "customerAddress",
       h.hallName as "hallName", 
       br.name as "branchName"
     FROM Bookings b
@@ -172,6 +176,7 @@ export async function getBookingById(id: string) {
       h.hallName as "hallName", 
       br.name as "branchName", 
       ep.name as "packageName", 
+      ep.basePrice as "packagePrice",
       t.name as "tenantName", 
       t.logoUrl as "tenantLogoUrl"
     FROM Bookings b
@@ -629,6 +634,18 @@ export async function updateBooking(id: string, data: {
         data.modifiedBy || null
       );
     }
+  });
+}
+
+export async function deleteBooking(id: string, deletedBy?: string) {
+  await withTransaction(async (client) => {
+    await query("UPDATE BookingPayments SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid", [id, deletedBy || null], client);
+    await query("UPDATE BookingApprovals SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid", [id, deletedBy || null], client);
+    await query("UPDATE Contracts SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid", [id, deletedBy || null], client);
+    await query("UPDATE BookingMenuItems SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid", [id, deletedBy || null], client);
+    await query("UPDATE BookingAddOns SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid", [id, deletedBy || null], client);
+    await query("UPDATE BookingFollowUps SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE bookingId = $1::uuid", [id, deletedBy || null], client);
+    await query("UPDATE Bookings SET isDeleted = TRUE, deletedAt = CURRENT_TIMESTAMP, deletedBy = $2 WHERE id = $1::uuid", [id, deletedBy || null], client);
   });
 }
 

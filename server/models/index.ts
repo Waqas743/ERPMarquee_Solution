@@ -13,5 +13,4 @@ export * from "./menuModel";
 export * from "./addOnsModel";
 export * from "./eventPackagesModel";
 export * from "./reportsModel";
-export * from "./tasksModel";
 export * from "./authModel";

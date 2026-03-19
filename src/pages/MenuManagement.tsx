@@ -6,7 +6,8 @@ import {
   XCircle, Filter, ChevronDown
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const MenuManagement = () => {
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -216,13 +217,15 @@ const MenuManagement = () => {
           <p className="text-sm sm:text-base text-slate-500">Manage your catering dishes and categories.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => activeTab === 'items' ? handleOpenItemModal() : handleOpenCategoryModal()}
-            className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
-          >
-            <Plus size={20} />
-            {activeTab === 'items' ? 'Add Item' : 'Add Category'}
-          </button>
+          {hasPermission('menu.create') && activeTab !== 'reports' && (
+            <button 
+              onClick={() => activeTab === 'items' ? handleOpenItemModal() : handleOpenCategoryModal()}
+              className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
+            >
+              <Plus size={20} />
+              {activeTab === 'items' ? 'Add Item' : 'Add Category'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -274,14 +277,16 @@ const MenuManagement = () => {
               />
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <select 
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Categories' },
+                  ...categories.map((c: any) => ({ value: c.id, label: c.name }))
+                ]}
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full"
-              >
-                <option value="">All Categories</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+                onChange={(value) => setCategoryFilter(value)}
+                placeholder="All Categories"
+                className="w-full sm:w-64"
+              />
             </div>
           </div>
 
@@ -340,12 +345,16 @@ const MenuManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => handleOpenItemModal(item)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => setDeleteConfirmation({ isOpen: true, type: 'item', id: item.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                            <Trash2 size={16} />
-                          </button>
+                          {hasPermission('menu.edit') && (
+                            <button onClick={() => handleOpenItemModal(item)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+                          {hasPermission('menu.delete') && (
+                            <button onClick={() => setDeleteConfirmation({ isOpen: true, type: 'item', id: item.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -376,12 +385,16 @@ const MenuManagement = () => {
                     <Tag size={24} />
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                      <Edit2 size={18} />
-                    </button>
-                    <button onClick={() => setDeleteConfirmation({ isOpen: true, type: 'category', id: cat.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                      <Trash2 size={18} />
-                    </button>
+                    {hasPermission('menu.edit') && (
+                      <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                        <Edit2 size={18} />
+                      </button>
+                    )}
+                    {hasPermission('menu.delete') && (
+                      <button onClick={() => setDeleteConfirmation({ isOpen: true, type: 'category', id: cat.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 mb-1">{cat.name}</h3>
@@ -527,10 +540,13 @@ const MenuManagement = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Category</label>
-                  <select required value={itemFormData.categoryId} onChange={e => setItemFormData({...itemFormData, categoryId: e.target.value})} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                    <option value="">Select Category</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    options={categories.map((c: any) => ({ value: c.id, label: c.name }))}
+                    value={itemFormData.categoryId}
+                    onChange={(value) => setItemFormData({...itemFormData, categoryId: value})}
+                    placeholder="Select Category"
+                    className="w-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Item Name</label>

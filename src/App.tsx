@@ -15,11 +15,11 @@ import Approvals from './pages/Approvals';
 import MenuManagement from './pages/MenuManagement';
 import Packages from './pages/Packages';
 import AddOns from './pages/AddOns';
-import Tasks from './pages/Tasks';
 import Plans from './pages/Plans';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Reports from './pages/Reports';
+import { getCurrentUser } from './utils/session';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -46,7 +46,7 @@ export default function App() {
 
   if (isAuthenticated === null) return null;
 
-  const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+  const user = getCurrentUser() || {};
   const isSuperAdmin = user.role === 'super_admin';
 
   return (
@@ -73,12 +73,11 @@ export default function App() {
                 {!isSuperAdmin && <Route path="/menu" element={<MenuManagement />} />}
                 {!isSuperAdmin && <Route path="/packages" element={<Packages />} />}
                 {!isSuperAdmin && <Route path="/add-ons" element={<AddOns />} />}
-                {!isSuperAdmin && <Route path="/tasks" element={<Tasks />} />}
                 {!isSuperAdmin && <Route path="/approvals" element={<Approvals />} />}
                 {!isSuperAdmin && <Route path="/halls/:hallId/calendar" element={<HallBookingCalendar />} />}
                 {!isSuperAdmin && <Route path="/reports" element={<Reports />} />}
                 {isSuperAdmin && <Route path="/plans" element={<Plans />} />}
-                <Route path="/settings" element={<Settings />} />
+                {isSuperAdmin && <Route path="/settings" element={<Settings />} />}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

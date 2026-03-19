@@ -22,8 +22,10 @@ import {
   createFollowUpComment as createFollowUpCommentModel,
   assignBooking as assignBookingModel,
   getFollowUpById,
+  deleteBooking as deleteBookingModel,
 } from "../models/bookingsModel";
 import { createNotification } from "../models/notificationsModel";
+import { getTenantAdmins } from "../models/usersModel";
 import { notifyUser, notifyBookingRoom } from "../services/socket";
 
 export async function checkBookingAvailability(req: Request, res: Response) {
@@ -140,6 +142,26 @@ export async function createBooking(req: Request, res: Response) {
       selectedAddOns,
       createdBy: authUserId,
     });
+
+    // Notify Admins
+    try {
+      const adminIds = await getTenantAdmins(tenantId);
+      const authUserName = (req as any).auth?.fullName || "A user";
+      for (const adminId of adminIds) {
+        if (adminId !== authUserId) {
+          const notif = await createNotification({
+            userId: adminId,
+            title: "New Booking Created",
+            message: `${authUserName} created a new booking #${bookingNumber} for ${eventDate}.`,
+            link: `/bookings/${bookingId}`
+          });
+          notifyUser(adminId, "notification", notif);
+        }
+      }
+    } catch (notifErr) {
+      console.error("Error sending admin notifications for createBooking:", notifErr);
+    }
+
     res.json({ id: bookingId, bookingNumber });
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -225,6 +247,30 @@ export async function updateBooking(req: Request, res: Response) {
   }
 }
 
+export async function deleteBooking(req: Request, res: Response) {
+  const authUserId = (req as any).auth?.userId;
+  const { id } = req.params;
+  try {
+    const existingBooking = await getBookingById(id);
+    if (!existingBooking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const auth = (req as any).auth;
+    if (auth.roleName === "manager" && existingBooking.branchId !== auth.branchId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (auth.roleName === "staff" && existingBooking.createdBy !== auth.userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    await deleteBookingModel(id, authUserId);
+    res.json({ message: "Booking deleted successfully" });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+}
+
 export async function updateBookingStatus(req: Request, res: Response) {
   const authUserId = (req as any).auth?.userId;
   const auth = (req as any).auth;
@@ -243,6 +289,29 @@ export async function updateBookingStatus(req: Request, res: Response) {
     }
 
     await updateBookingStatusModel(id, { status, userId: authUserId || userId, comments });
+    
+    // Notify Admins about status change
+    try {
+      const existingBooking2 = await getBookingById(id);
+      if (existingBooking2) {
+        const adminIds = await getTenantAdmins(existingBooking2.tenantId);
+        const authUserName = (req as any).auth?.fullName || "A user";
+        for (const adminId of adminIds) {
+          if (adminId !== authUserId) {
+            const notif = await createNotification({
+              userId: adminId,
+              title: `Booking ${status}`,
+              message: `Booking #${existingBooking2.bookingNumber} status was changed to ${status} by ${authUserName}.`,
+              link: `/bookings/${id}`
+            });
+            notifyUser(adminId, "notification", notif);
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error("Error sending admin notifications for updateBookingStatus:", notifErr);
+    }
+
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ message: error.message });

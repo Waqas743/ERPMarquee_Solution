@@ -2,7 +2,7 @@ import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Shield, X, Trash2, Edit2, CheckCircle2, Circle } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { getCurrentUser, getTenantId } from '../utils/session';
+import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
 
 const Roles = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -97,12 +97,35 @@ const Roles = () => {
   };
 
   const togglePermission = (key: string) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(key)
-        ? prev.permissions.filter(p => p !== key)
-        : [...prev.permissions, key]
-    }));
+    setFormData(prev => {
+      let newPermissions = [...prev.permissions];
+      const isCurrentlySelected = newPermissions.includes(key);
+
+      if (isCurrentlySelected) {
+        // Uncheck
+        newPermissions = newPermissions.filter(p => p !== key);
+        
+        // If unchecking '.view', we must uncheck '.create', '.edit', '.delete' for the same module
+        if (key.endsWith('.view')) {
+          const module = key.split('.')[0];
+          newPermissions = newPermissions.filter(p => !p.startsWith(`${module}.`));
+        }
+      } else {
+        // Check
+        newPermissions.push(key);
+        
+        // If checking '.create', '.edit', or '.delete', we must check '.view'
+        if (key.match(/\.(create|edit|delete)$/)) {
+          const module = key.split('.')[0];
+          const viewKey = `${module}.view`;
+          if (!newPermissions.includes(viewKey)) {
+            newPermissions.push(viewKey);
+          }
+        }
+      }
+
+      return { ...prev, permissions: newPermissions };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,13 +180,15 @@ const Roles = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Roles & Permissions</h1>
           <p className="text-sm sm:text-base text-slate-500">Define access levels for your team members.</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
-        >
-          <Plus size={20} />
-          Create Role
-        </button>
+        {hasPermission('roles.create') && (
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors w-full sm:w-auto"
+          >
+            <Plus size={20} />
+            Create Role
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -179,13 +204,15 @@ const Roles = () => {
                   <Shield size={24} />
                 </div>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => handleOpenModal(role)}
-                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  {!role.isSystem && (
+                  {hasPermission('roles.edit') && (
+                    <button 
+                      onClick={() => handleOpenModal(role)}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                  )}
+                  {!role.isSystem && hasPermission('roles.delete') && (
                     <button 
                       onClick={() => setDeleteConfirmation({ isOpen: true, id: role.id })}
                       className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

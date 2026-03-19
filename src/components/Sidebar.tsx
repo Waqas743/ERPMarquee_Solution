@@ -5,6 +5,7 @@ import {
   Building2, LogOut, Shield, Globe, Building, 
   CalendarCheck, CheckSquare, X, Utensils, Package, PlusCircle, BarChart3
 } from 'lucide-react';
+import { getCurrentUser } from '../utils/session';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
-  const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+  const user = getCurrentUser() || {};
   const isSuperAdmin = user.role === 'super_admin';
 
   const handleLogout = () => {
@@ -30,12 +31,11 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     { icon: Package, label: 'Packages', path: '/packages', permission: 'menu.view', roles: ['admin'] },
     { icon: PlusCircle, label: 'Add-ons', path: '/add-ons', permission: 'menu.view', roles: ['admin'] },
     { icon: BarChart3, label: 'Reports', path: '/reports', permission: 'dashboard.view', roles: ['admin'] },
-    { icon: CheckSquare, label: 'Tasks', path: '/tasks', permission: 'dashboard.view', roles: ['admin'] },
     { icon: CheckSquare, label: 'Approvals', path: '/approvals', permission: 'approvals.view', roles: ['admin'] },
     { icon: Users, label: 'Users', path: '/users', permission: 'users.view', roles: ['admin'] },
     { icon: Shield, label: 'Roles', path: '/roles', permission: 'roles.view', roles: ['admin'] },
     { icon: CreditCard, label: 'Plans', path: '/plans', roles: ['super_admin'] },
-    { icon: Settings, label: 'Settings', path: '/settings', permission: 'settings.view', roles: ['super_admin', 'admin'] },
+    { icon: Settings, label: 'Settings', path: '/settings', roles: ['super_admin'] },
   ].filter(item => {
     // If user is super admin, show only items allowed for super admin
     if (isSuperAdmin) {
@@ -50,6 +50,11 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     
     // 2. Check permissions (Tenant Admin sees all tenant items, staff needs specific permission)
     if (user.roleName === 'admin' || (!user.roleName && user.role === 'admin')) {
+      return true;
+    }
+
+    // Always allow director and manager to see Users tab
+    if (item.path === '/users' && (user.roleName === 'director' || user.roleName === 'manager')) {
       return true;
     }
     
@@ -67,7 +72,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       )}
 
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col h-screen transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto no-print
+        fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col h-screen transition-transform duration-300 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 no-print
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="p-6 flex items-center justify-between">

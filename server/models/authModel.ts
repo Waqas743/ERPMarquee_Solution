@@ -8,7 +8,7 @@ function isBcryptHash(value: string) {
 }
 
 export async function login(username: string, password: string) {
-  const adminResult = await query("SELECT * FROM SuperAdmins WHERE username = $1", [username]);
+  const adminResult = await query("SELECT * FROM SuperAdmins WHERE LOWER(username) = LOWER($1)", [username]);
   const admin = adminResult.rows[0] as any;
   if (admin) {
     const adminPassword = String(admin.password || "");
@@ -39,7 +39,7 @@ export async function login(username: string, password: string) {
       FROM TenantUsers tu
       JOIN Tenants t ON tu.tenantId::text = t.id::text
       LEFT JOIN Roles r ON tu.roleId::text = r.id::text
-      WHERE (tu.email = $1 OR tu.username = $2) AND tu.isActive = TRUE
+      WHERE (LOWER(tu.email) = LOWER($1) OR LOWER(tu.username) = LOWER($2)) AND tu.isActive = TRUE
     `,
     [username, username]
   );
@@ -64,9 +64,10 @@ export async function login(username: string, password: string) {
       return { success: false, status: 403, message: "Your tenant account is suspended." };
     }
     let permissions: string[] = [];
-    if (tenantUser.roleId) {
-      const perms = (await query("SELECT permissionKey FROM RolePermissions WHERE roleId = $1::uuid", [tenantUser.roleId])).rows as any[];
-      permissions = perms.map((p) => p.permissionKey);
+    const actualRoleId = tenantUser.roleid || tenantUser.roleId;
+    if (actualRoleId) {
+      const perms = (await query('SELECT permissionKey as "permissionKey" FROM RolePermissions WHERE roleId = $1::uuid AND COALESCE(isDeleted, FALSE) = FALSE', [actualRoleId])).rows as any[];
+      permissions = perms.map((p) => p.permissionKey || p.permissionkey);
     }
     
     // Apply default permissions based on roleName if not explicitly set, or enforce overrides
@@ -75,48 +76,31 @@ export async function login(username: string, password: string) {
     if (roleNameLower === "admin") {
       permissions = [
         "dashboard.view",
-        "branches.view",
-        "branches.edit",
-        "users.view",
-        "users.edit",
-        "roles.view",
-        "roles.edit",
-        "halls.view",
-        "halls.edit",
-        "calendar.view",
-        "calendar.edit",
-        "bookings.view",
-        "bookings.edit",
-        "approvals.view",
-        "approvals.edit",
-        "menu.view",
-        "menu.edit",
-        "settings.view",
-        "settings.edit",
+        "branches.view", "branches.create", "branches.edit", "branches.delete",
+        "users.view", "users.create", "users.edit", "users.delete",
+        "roles.view", "roles.create", "roles.edit", "roles.delete",
+        "halls.view", "halls.create", "halls.edit", "halls.delete",
+        "calendar.view", "calendar.edit",
+        "bookings.view", "bookings.create", "bookings.edit", "bookings.delete",
+        "approvals.view", "approvals.edit",
+        "menu.view", "menu.create", "menu.edit", "menu.delete",
+        "settings.view", "settings.edit",
       ];
     } else if (roleNameLower === "director" || roleNameLower === "manager") {
       permissions = [
         "dashboard.view",
-        "branches.view",
-        "branches.edit",
-        "users.view",
-        "users.edit",
-        "halls.view",
-        "halls.edit",
-        "calendar.view",
-        "calendar.edit",
-        "bookings.view",
-        "bookings.edit",
-        "approvals.view",
-        "approvals.edit",
-        "menu.view",
-        "menu.edit",
+        "branches.view", "branches.create", "branches.edit", "branches.delete",
+        "users.view", "users.create", "users.edit", "users.delete",
+        "halls.view", "halls.create", "halls.edit", "halls.delete",
+        "calendar.view", "calendar.edit",
+        "bookings.view", "bookings.create", "bookings.edit", "bookings.delete",
+        "approvals.view", "approvals.edit",
+        "menu.view", "menu.create", "menu.edit", "menu.delete",
       ]; // Everything except settings and roles
     } else if (roleNameLower === "staff") {
       permissions = [
         "dashboard.view",
-        "bookings.view",
-        "bookings.edit",
+        "bookings.view", "bookings.create", "bookings.edit", "bookings.delete",
         "calendar.view",
       ]; // Only bookings and dashboard
     }

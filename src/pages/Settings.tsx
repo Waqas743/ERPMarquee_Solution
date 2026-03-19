@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Save, Shield, Globe, Mail, Bell, Database } from 'lucide-react';
 import { getCurrentUser, getTenantId } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const Settings = () => {
   const user = getCurrentUser();
@@ -96,15 +97,13 @@ const Settings = () => {
         {isSuperAdmin && (
           <div className="w-full sm:w-64 space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase">Select Tenant</label>
-            <select
+            <SearchableSelect
+              options={tenants.map((t: any) => ({ value: t.id, label: t.name }))}
               value={selectedTenantId}
-              onChange={(e) => handleTenantChange(e.target.value)}
-              className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium"
-            >
-              {tenants.map((t: any) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+              onChange={(value) => handleTenantChange(value)}
+              placeholder="Select Tenant"
+              className="w-full"
+            />
           </div>
         )}
       </div>
@@ -136,16 +135,18 @@ const Settings = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Default Currency</label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: 'PKR', label: 'Pakistani Rupee (PKR)' },
+                    { value: 'USD', label: 'US Dollar (USD)' },
+                    { value: 'GBP', label: 'British Pound (GBP)' },
+                    { value: 'AED', label: 'UAE Dirham (AED)' }
+                  ]}
                   value={settings.defaultCurrency}
-                  onChange={e => setSettings({ ...settings, defaultCurrency: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="PKR">Pakistani Rupee (PKR)</option>
-                  <option value="USD">US Dollar (USD)</option>
-                  <option value="GBP">British Pound (GBP)</option>
-                  <option value="AED">UAE Dirham (AED)</option>
-                </select>
+                  onChange={(value) => setSettings({ ...settings, defaultCurrency: value })}
+                  placeholder="Select Currency"
+                  className="w-full"
+                />
               </div>
             </div>
           </div>

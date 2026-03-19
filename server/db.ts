@@ -380,22 +380,6 @@ export async function initDatabase() {
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (userId) REFERENCES TenantUsers(id)
     );
-
-    CREATE TABLE IF NOT EXISTS Tasks (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      tenantId UUID NOT NULL,
-      branchId UUID,
-      title TEXT NOT NULL,
-      description TEXT,
-      status TEXT DEFAULT 'Pending',
-      priority TEXT DEFAULT 'Medium',
-      assignedTo UUID,
-      dueDate TEXT,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (tenantId) REFERENCES Tenants(id),
-      FOREIGN KEY (branchId) REFERENCES Branches(id),
-      FOREIGN KEY (assignedTo) REFERENCES TenantUsers(id)
-    );
   `);
 
   await query(`
@@ -622,13 +606,6 @@ export async function initDatabase() {
       FOREIGN KEY (userId) REFERENCES TenantUsers(id)
     )
   `);
-
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS modifiedAt TIMESTAMP");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS modifiedBy UUID");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS createdBy UUID");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
-  await query("ALTER TABLE Tasks ADD COLUMN IF NOT EXISTS deletedBy UUID");
 
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS createdBy UUID");

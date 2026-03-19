@@ -17,7 +17,7 @@ import {
 import { listTenants, createTenant, updateTenant, deleteTenant } from "./controllers/tenantsController";
 import { listBranches, getBranch, createBranch, updateBranch, deleteBranch } from "./controllers/branchesController";
 import { listRoles, createRole, updateRole, deleteRole, permissionsList } from "./controllers/rolesController";
-import { getRole } from "./controllers/rolesController";
+import { getRole, getRolePermissions, updateRolePermissions } from "./controllers/rolesController";
 import { listHalls, getHall, createHall, updateHall, deleteHall } from "./controllers/hallsController";
 import {
   listHallCalendar,
@@ -48,6 +48,7 @@ import {
   deleteBookingFollowUp,
   addFollowUpComment,
   assignBooking,
+  deleteBooking,
 } from "./controllers/bookingsController";
 import { listUsers, getUser, createUser, updateUser, deleteUser } from "./controllers/usersController";
 import { getSettings, updateSettings } from "./controllers/settingsController";
@@ -72,7 +73,6 @@ import {
   deleteEventPackage,
 } from "./controllers/eventPackagesController";
 import { packageRevenueReport, popularItemsReport } from "./controllers/reportsController";
-import { listTasks, createTask, updateTask, deleteTask } from "./controllers/tasksController";
 import { login } from "./controllers/authController";
 import { getNotifications, markAsRead, markAllAsRead } from "./controllers/notificationsController";
 
@@ -176,6 +176,7 @@ router.get("/bookings", listBookings);
 router.get("/bookings/:id", getBooking);
 router.post("/bookings", createBooking);
 router.put("/bookings/:id", updateBooking);
+router.delete("/bookings/:id", deleteBooking);
 router.post("/bookings/:id/assign", assignBooking);
 router.put("/bookings/:id/status", updateBookingStatus);
 router.get("/bookings/:id/payments", listBookingPayments);
@@ -227,11 +228,6 @@ router.delete("/event-packages/:id", deleteEventPackage);
 
 router.get("/reports/package-revenue", packageRevenueReport);
 router.get("/reports/popular-items", popularItemsReport);
-
-router.get("/tasks", listTasks);
-router.post("/tasks", createTask);
-router.put("/tasks/:id", updateTask);
-router.delete("/tasks/:id", deleteTask);
 
 router.post("/login", login);
 

@@ -59,7 +59,7 @@ const Login = () => {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Username</label>
+              <label className="text-sm font-semibold text-slate-700">Username or Email</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
@@ -68,7 +68,7 @@ const Login = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  placeholder="Enter your username"
+                  placeholder="Enter your username or email"
                 />
               </div>
             </div>

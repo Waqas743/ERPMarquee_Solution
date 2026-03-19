@@ -11,6 +11,8 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { io } from 'socket.io-client';
+import { getCurrentUser, hasPermission } from '../utils/session';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 const BookingDetail = () => {
   const { id } = useParams();
@@ -61,7 +63,7 @@ const BookingDetail = () => {
   // Print State
   const [printType, setPrintType] = useState<'details' | 'invoice' | 'contract' | null>(null);
 
-  const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+  const user = getCurrentUser() || {};
   const canAssign = ['admin', 'director', 'manager'].includes((user.roleName || '').toLowerCase());
 
   const fetchData = async () => {
@@ -537,6 +539,44 @@ By signing below, both parties agree to the terms and conditions outlined in thi
     }
   };
 
+  const handleDeleteBooking = async () => {
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this! This will delete the booking and all its related records (payments, follow-ups, etc.).",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const res = await fetch(`/api/bookings/${id}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          await Swal.fire('Deleted!', 'Booking has been deleted.', 'success');
+          navigate('/bookings');
+        } else {
+          const data = await res.json();
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: data.message || "Failed to delete booking"
+          });
+        }
+      } catch (error) {
+        console.error("Delete booking error:", error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: "An error occurred while deleting the booking"
+        });
+      }
+    }
+  };
+
   const handleCancelBooking = () => {
     // Check if booking is approved and has payments
     if (booking.status === 'Approved' && booking.paymentStatus !== 'Not Paid') {
@@ -697,6 +737,16 @@ By signing below, both parties agree to the terms and conditions outlined in thi
     doc.text(`Date: ${safeFormat(booking?.eventDate, 'PPP')}`, 85, headerHeight + 58);
     doc.text(`Slot: ${booking?.slot}`, 145, headerHeight + 58);
     doc.text(`Guests: ${booking?.guestCount}`, 25, headerHeight + 64);
+
+    if (booking?.packageName) {
+      doc.text(`Package: ${booking?.packageName}`, 85, headerHeight + 64);
+      if (booking?.packagePrice) {
+        doc.text(`Rate: Rs. ${Number(booking.packagePrice).toLocaleString()} / head`, 145, headerHeight + 64);
+      } else if (booking?.guestCount) {
+        const perHead = Number(booking?.cateringCharges) / Number(booking?.guestCount);
+        doc.text(`Rate: Rs. ${perHead.toLocaleString()} / head`, 145, headerHeight + 64);
+      }
+    }
     
     // Charges Table
     const tableData = [
@@ -933,7 +983,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 no-print">
-          {canAssign && (
+          {hasPermission('bookings.edit') && canAssign && (
             <button
               onClick={() => {
                 fetchStaff();
@@ -945,25 +995,36 @@ By signing below, both parties agree to the terms and conditions outlined in thi
               <UserPlus size={18} className="sm:w-5 sm:h-5" />
             </button>
           )}
-          <button 
-            onClick={() => navigate(`/bookings/edit/${id}`)}
-            disabled={!canEdit}
-            className={`p-2 rounded-xl transition-colors ${
-              !canEdit 
-                ? 'text-slate-300 cursor-not-allowed' 
-                : 'text-slate-500 hover:bg-slate-100'
-            }`}
-            title={!canEdit ? "Only Pending bookings, or Approved bookings without payments can be edited" : "Edit Booking"}
-          >
-            <Edit2 size={18} className="sm:w-5 sm:h-5" />
-          </button>
-          <button 
+          {hasPermission('bookings.edit') && (
+            <button 
+              onClick={() => navigate(`/bookings/edit/${id}`)}
+              disabled={!canEdit}
+              className={`p-2 rounded-xl transition-colors ${
+                !canEdit 
+                  ? 'text-slate-300 cursor-not-allowed' 
+                  : 'text-slate-500 hover:bg-slate-100'
+              }`}
+              title={!canEdit ? "Only Pending bookings, or Approved bookings without payments can be edited" : "Edit Booking"}
+            >
+              <Edit2 size={18} className="sm:w-5 sm:h-5" />
+            </button>
+          )}
+          {hasPermission('bookings.delete') && (
+            <button 
+              onClick={handleDeleteBooking}
+              className="p-2 rounded-xl transition-colors text-slate-500 hover:text-red-600 hover:bg-red-50"
+              title="Delete Booking"
+            >
+              <Trash2 size={18} className="sm:w-5 sm:h-5" />
+            </button>
+          )}
+          {/* <button 
             onClick={() => handlePrint('details')}
             className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
             title="Print Details"
           >
             <Printer size={18} className="sm:w-5 sm:h-5" />
-          </button>
+          </button> */}
           <button 
             onClick={generateInvoicePDF}
             className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
@@ -971,9 +1032,9 @@ By signing below, both parties agree to the terms and conditions outlined in thi
           >
             <FileText size={18} className="sm:w-5 sm:h-5" />
           </button>
-          <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+          {/* <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
             <Share2 size={18} className="sm:w-5 sm:h-5" />
-          </button>
+          </button> */}
           <div className="h-6 sm:h-8 w-px bg-slate-200 mx-1 sm:mx-2" />
           {booking.status === 'Pending' && booking.status !== 'Cancelled' && (
             <div className="flex items-center gap-2">
@@ -1058,6 +1119,9 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Event Package</p>
                         <p className="text-base sm:text-lg font-bold text-indigo-600">{booking.packageName}</p>
+                        {booking.guestCount ? (
+                          <p className="text-sm font-bold text-slate-500">Rs. {(Number(booking.cateringCharges) / Number(booking.guestCount)).toLocaleString()} <span className="text-[10px] font-normal">/ head</span></p>
+                        ) : null}
                       </div>
                     )}
                   </div>
@@ -1159,8 +1223,10 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                     <span className="font-bold text-slate-900">Rs. {(Number(booking.fireworkPrice) * Number(booking.fireworkQuantity))?.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between py-2 sm:py-3 border-b border-slate-100 text-sm">
-                    <span className="text-slate-600 font-medium">Catering</span>
-                    <span className="font-bold text-slate-900">Rs. {booking.cateringCharges?.toLocaleString()}</span>
+                    <span className="text-slate-600 font-medium">
+                      Catering {booking.packageName ? `(${booking.packageName} @ Rs. ${(booking.packagePrice ? Number(booking.packagePrice) : (Number(booking.cateringCharges) / Number(booking.guestCount))).toLocaleString()} / head)` : ''}
+                    </span>
+                    <span className="font-bold text-slate-900">Rs. {Number(booking.cateringCharges)?.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between py-2 sm:py-3 border-b border-slate-100 text-sm">
                     <span className="text-slate-600 font-medium">Add-ons</span>
@@ -1185,24 +1251,26 @@ By signing below, both parties agree to the terms and conditions outlined in thi
             <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-900">Follow Ups</h3>
-                <button 
-                  disabled={isBookingCompleted || booking.status === 'Completed'}
-                  onClick={() => {
-                    setEditingFollowUp(null);
-                    setFollowUpForm({
-                      type: 'Note',
-                      status: 'Pending',
-                      followUpDate: format(new Date(), 'yyyy-MM-dd'),
-                      notes: ''
-                    });
-                    setIsFollowUpModalOpen(true);
-                  }}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
-                    isBookingCompleted || booking.status === 'Completed' ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                  }`}
-                >
-                  <Plus size={16} /> Add Follow Up
-                </button>
+                {hasPermission('bookings.edit') && (
+                  <button 
+                    disabled={isBookingCompleted || booking.status === 'Completed'}
+                    onClick={() => {
+                      setEditingFollowUp(null);
+                      setFollowUpForm({
+                        type: 'Note',
+                        status: 'Pending',
+                        followUpDate: format(new Date(), 'yyyy-MM-dd'),
+                        notes: ''
+                      });
+                      setIsFollowUpModalOpen(true);
+                    }}
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
+                      isBookingCompleted || booking.status === 'Completed' ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
+                  >
+                    <Plus size={16} /> Add Follow Up
+                  </button>
+                )}
               </div>
               <div className="space-y-3 sm:space-y-4">
                 {followUps.length === 0 ? (
@@ -1234,35 +1302,37 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0">
-                          <button 
-                            disabled={isBookingCompleted || booking.status === 'Completed'}
-                            onClick={() => {
-                              setEditingFollowUp(followUp);
-                              setFollowUpForm({
-                                type: followUp.type,
-                                status: followUp.status,
-                                followUpDate: format(new Date(followUp.followUpDate), 'yyyy-MM-dd'),
-                                notes: followUp.notes
-                              });
-                              setIsFollowUpModalOpen(true);
-                            }}
-                            className={`p-1.5 sm:p-2 rounded-lg transition-all ${
-                              isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
-                            }`}
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            disabled={isBookingCompleted || booking.status === 'Completed'}
-                            onClick={() => handleDeleteFollowUp(followUp.id)}
-                            className={`p-1.5 sm:p-2 rounded-lg transition-all ${
-                              isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
-                            }`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
+                        {hasPermission('bookings.edit') && (
+                          <div className="flex items-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0">
+                            <button 
+                              disabled={isBookingCompleted || booking.status === 'Completed'}
+                              onClick={() => {
+                                setEditingFollowUp(followUp);
+                                setFollowUpForm({
+                                  type: followUp.type,
+                                  status: followUp.status,
+                                  followUpDate: format(new Date(followUp.followUpDate), 'yyyy-MM-dd'),
+                                  notes: followUp.notes
+                                });
+                                setIsFollowUpModalOpen(true);
+                              }}
+                              className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                                isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                              }`}
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              disabled={isBookingCompleted || booking.status === 'Completed'}
+                              onClick={() => handleDeleteFollowUp(followUp.id)}
+                              className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                                isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                              }`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Comments Section */}
@@ -1281,24 +1351,26 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                           </div>
                         )}
                         
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Add a comment..."
-                            value={newComments[followUp.id] || ''}
-                            onChange={(e) => setNewComments(prev => ({ ...prev, [followUp.id]: e.target.value }))}
-                            onKeyPress={(e) => e.key === 'Enter' && handleAddComment(followUp.id)}
-                            disabled={isBookingCompleted || booking.status === 'Completed'}
-                            className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                          />
-                          <button
-                            onClick={() => handleAddComment(followUp.id)}
-                            disabled={isBookingCompleted || booking.status === 'Completed' || !newComments[followUp.id]?.trim()}
-                            className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            <Send size={16} />
-                          </button>
-                        </div>
+                        {hasPermission('bookings.edit') && (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Add a comment..."
+                              value={newComments[followUp.id] || ''}
+                              onChange={(e) => setNewComments(prev => ({ ...prev, [followUp.id]: e.target.value }))}
+                              onKeyPress={(e) => e.key === 'Enter' && handleAddComment(followUp.id)}
+                              disabled={isBookingCompleted || booking.status === 'Completed'}
+                              className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                            />
+                            <button
+                              onClick={() => handleAddComment(followUp.id)}
+                              disabled={isBookingCompleted || booking.status === 'Completed' || !newComments[followUp.id]?.trim()}
+                              className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <Send size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -1311,16 +1383,18 @@ By signing below, both parties agree to the terms and conditions outlined in thi
             <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-900">Payment Schedule</h3>
-                <button 
-                  onClick={() => setIsPaymentModalOpen(true)}
-                  disabled={isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected'}
-                  className={`font-bold text-sm flex items-center gap-1 hover:underline ${
-                    (isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected') ? 'text-slate-400 cursor-not-allowed' : 'text-indigo-600'
-                  }`}
-                  title={isBookingCompleted || booking.status === 'Completed' ? "Booking is completed" : (booking.status !== 'Approved' && booking.status !== 'Completed') ? "Booking must be Approved to add payments" : ""}
-                >
-                  <Plus size={16} /> Add
-                </button>
+                {hasPermission('bookings.edit') && (
+                  <button 
+                    onClick={() => setIsPaymentModalOpen(true)}
+                    disabled={isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected'}
+                    className={`font-bold text-sm flex items-center gap-1 hover:underline ${
+                      (isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected') ? 'text-slate-400 cursor-not-allowed' : 'text-indigo-600'
+                    }`}
+                    title={isBookingCompleted || booking.status === 'Completed' ? "Booking is completed" : (booking.status !== 'Approved' && booking.status !== 'Completed') ? "Booking must be Approved to add payments" : ""}
+                  >
+                    <Plus size={16} /> Add
+                  </button>
+                )}
               </div>
               <div className="space-y-3 sm:space-y-4">
                 {payments.map((payment: any) => (
@@ -1342,7 +1416,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {payment.status === 'Pending' && (
+                          {payment.status === 'Pending' && hasPermission('bookings.edit') && (
                             <button 
                               onClick={async () => {
                                 if (booking.status !== 'Approved') {
@@ -1366,18 +1440,20 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                               Pay
                             </button>
                           )}
-                          <button 
-                            onClick={() => handleDeletePayment(payment.id)}
-                            disabled={payment.status === 'Paid'}
-                            className={`p-1.5 sm:p-2 rounded-lg transition-all ${
-                              payment.status === 'Paid' 
-                                ? 'text-slate-200 cursor-not-allowed' 
-                                : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
-                            }`}
-                            title={payment.status === 'Paid' ? "Paid payments cannot be deleted" : "Delete Payment"}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {hasPermission('bookings.edit') && (
+                            <button 
+                              onClick={() => handleDeletePayment(payment.id)}
+                              disabled={payment.status === 'Paid'}
+                              className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                                payment.status === 'Paid' 
+                                  ? 'text-slate-200 cursor-not-allowed' 
+                                  : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                              }`}
+                              title={payment.status === 'Paid' ? "Paid payments cannot be deleted" : "Delete Payment"}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
                       </div>
                   </div>
@@ -1428,7 +1504,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
             <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h3 className="text-lg font-bold text-slate-900">Contract Management</h3>
-                {!contract && (
+                {!contract && hasPermission('bookings.edit') && (
                   <button 
                     onClick={generateContractTemplate}
                     disabled={isBookingCompleted || booking.status === 'Completed' || (booking.status !== 'Approved' && booking.status !== 'Completed') || booking.status === 'Cancelled' || booking.status === 'Rejected'}
@@ -1453,20 +1529,22 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                       <span className="font-bold text-slate-900 text-sm truncate">Booking Contract - V1.0</span>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2">
-                      <button 
-                        onClick={() => {
-                          setContractContent(contract.content);
-                          setIsContractEditorOpen(true);
-                        }}
-                        disabled={isBookingCompleted || booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected'}
-                        className={`p-2 rounded-lg transition-colors ${
-                          (isBookingCompleted || booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected')
-                            ? 'text-slate-300 cursor-not-allowed'
-                            : 'text-slate-500 hover:bg-white'
-                        }`}
-                      >
-                        <Edit2 size={18} />
-                      </button>
+                      {hasPermission('bookings.edit') && (
+                        <button 
+                          onClick={() => {
+                            setContractContent(contract.content);
+                            setIsContractEditorOpen(true);
+                          }}
+                          disabled={isBookingCompleted || booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected'}
+                          className={`p-2 rounded-lg transition-colors ${
+                            (isBookingCompleted || booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected')
+                              ? 'text-slate-300 cursor-not-allowed'
+                              : 'text-slate-500 hover:bg-white'
+                          }`}
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                      )}
                       <button 
                         onClick={() => handlePrint('contract')}
                         className="p-2 text-slate-500 hover:bg-white rounded-lg transition-colors"
@@ -1597,6 +1675,12 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                   <p className="text-slate-600">Slot: {booking.slot}</p>
                   <p className="text-slate-600">Venue: {booking.hallName}</p>
                   <p className="text-slate-600">Guests: {booking.guestCount}</p>
+                  {booking.packageName && (
+                    <p className="text-slate-600">
+                      Package: {booking.packageName} 
+                      {` (Rs. ${(booking.packagePrice ? Number(booking.packagePrice) : (Number(booking.cateringCharges) / Number(booking.guestCount))).toLocaleString()} / head)`}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1637,8 +1721,8 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                   <span className="font-bold">Rs. {booking.decorationCharges?.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Catering</span>
-                  <span className="font-bold">Rs. {booking.cateringCharges?.toLocaleString()}</span>
+                  <span>Catering {booking.packageName && booking.guestCount ? `(@ Rs. ${(Number(booking.cateringCharges) / Number(booking.guestCount)).toLocaleString()} / head)` : ''}</span>
+                  <span className="font-bold">Rs. {Number(booking.cateringCharges)?.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Add-ons</span>
@@ -1737,28 +1821,30 @@ By signing below, both parties agree to the terms and conditions outlined in thi
             <div className="p-6 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Type</label>
-                <select 
+                <SearchableSelect
+                  options={[
+                    { value: 'Note', label: 'Note' },
+                    { value: 'Call', label: 'Call' },
+                    { value: 'Meeting', label: 'Meeting' },
+                    { value: 'Email', label: 'Email' }
+                  ]}
                   value={followUpForm.type}
-                  onChange={(e) => setFollowUpForm({ ...followUpForm, type: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="Note">Note</option>
-                  <option value="Call">Call</option>
-                  <option value="Meeting">Meeting</option>
-                  <option value="Email">Email</option>
-                </select>
+                  onChange={(value) => setFollowUpForm({ ...followUpForm, type: value })}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Status</label>
-                <select 
+                <SearchableSelect
+                  options={[
+                    { value: 'Pending', label: 'Pending' },
+                    { value: 'Completed', label: 'Completed' },
+                    { value: 'Cancelled', label: 'Cancelled' }
+                  ]}
                   value={followUpForm.status}
-                  onChange={(e) => setFollowUpForm({ ...followUpForm, status: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
+                  onChange={(value) => setFollowUpForm({ ...followUpForm, status: value })}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Follow Up Date</label>
@@ -1831,16 +1917,17 @@ By signing below, both parties agree to the terms and conditions outlined in thi
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Payment Type</label>
-                <select 
+                <SearchableSelect
+                  options={[
+                    { value: 'Advance', label: 'Advance' },
+                    { value: 'Installment', label: 'Installment' },
+                    { value: 'Security Deposit', label: 'Security Deposit' },
+                    { value: 'Other', label: 'Other' }
+                  ]}
                   value={newPayment.type}
-                  onChange={(e) => setNewPayment({ ...newPayment, type: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="Advance">Advance</option>
-                  <option value="Installment">Installment</option>
-                  <option value="Security Deposit">Security Deposit</option>
-                  <option value="Other">Other</option>
-                </select>
+                  onChange={(value) => setNewPayment({ ...newPayment, type: value })}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Amount (Rs.)</label>
@@ -1863,14 +1950,15 @@ By signing below, both parties agree to the terms and conditions outlined in thi
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Initial Status</label>
-                <select 
+                <SearchableSelect
+                  options={[
+                    { value: 'Pending', label: 'Pending' },
+                    { value: 'Paid', label: 'Paid' }
+                  ]}
                   value={newPayment.status}
-                  onChange={(e) => setNewPayment({ ...newPayment, status: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Paid">Paid</option>
-                </select>
+                  onChange={(value) => setNewPayment({ ...newPayment, status: value })}
+                  className="w-full"
+                />
               </div>
               <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
                 <button
@@ -1987,18 +2075,16 @@ By signing below, both parties agree to the terms and conditions outlined in thi
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Select Staff</label>
-                <select
+                <SearchableSelect
+                  options={staffList.map((staff: any) => ({
+                    value: staff.id,
+                    label: `${staff.fullName} (${staff.email})`
+                  }))}
                   value={selectedStaffId}
-                  onChange={(e) => setSelectedStaffId(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                >
-                  <option value="">Select a staff member</option>
-                  {staffList.map((staff: any) => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.fullName} ({staff.email})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setSelectedStaffId(value)}
+                  placeholder="Select a staff member"
+                  className="w-full"
+                />
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">

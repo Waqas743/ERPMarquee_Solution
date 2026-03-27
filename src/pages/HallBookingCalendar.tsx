@@ -250,6 +250,7 @@ const HallBookingCalendar = () => {
                 <input
                   required
                   type="date"
+                  min={new Date().toISOString().split('T')[0]}
                   value={formData.eventDate}
                   onChange={e => setFormData({ ...formData, eventDate: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"

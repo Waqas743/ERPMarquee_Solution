@@ -39,7 +39,7 @@ export async function login(username: string, password: string) {
       FROM TenantUsers tu
       JOIN Tenants t ON tu.tenantId::text = t.id::text
       LEFT JOIN Roles r ON tu.roleId::text = r.id::text
-      WHERE (LOWER(tu.email) = LOWER($1) OR LOWER(tu.username) = LOWER($2)) AND tu.isActive = TRUE
+      WHERE (LOWER(tu.email) = LOWER($1) OR LOWER(tu.username) = LOWER($2))
     `,
     [username, username]
   );

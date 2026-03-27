@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie
 } from 'recharts';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, differenceInDays } from 'date-fns';
 import { getCurrentUser, getTenantId } from '../utils/session';
 
 const StatCard = ({ icon: Icon, label, value, trend, color, prefix = "" }: any) => (
@@ -179,6 +179,8 @@ const Dashboard = () => {
     branches: 0,
     halls: 0,
   });
+  const [allTenants, setAllTenants] = useState<any[]>([]);
+  const [expiringTenants, setExpiringTenants] = useState<any[]>([]);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -189,8 +191,21 @@ const Dashboard = () => {
             fetch('/api/plans'),
             fetch('/api/branches')
           ]);
+          
+          const tenantsData = await tenantsRes.json();
+          setAllTenants(tenantsData);
+          
+          const today = new Date();
+          const expiring = tenantsData.filter((t: any) => {
+            if (!t.subscriptionEndDate || !t.isActive) return false;
+            const endDate = new Date(t.subscriptionEndDate);
+            const daysLeft = differenceInDays(endDate, today);
+            return daysLeft >= 0 && daysLeft <= 30; // Expiring in next 30 days
+          });
+          setExpiringTenants(expiring);
+
           setSuperAdminStats({
-            tenants: (await tenantsRes.json()).length,
+            tenants: tenantsData.length,
             activePlans: (await plansRes.json()).length,
             branches: (await branchesRes.json()).length,
             halls: 0
@@ -530,7 +545,112 @@ const Dashboard = () => {
       )}
 
       {isSuperAdmin && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+          {/* Total Tenants Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <Building size={18} className="text-indigo-600" />
+                Recent Tenants
+              </h3>
+              <button onClick={() => window.location.href = '/tenants'} className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
+                View All <ArrowRight size={14} />
+              </button>
+            </div>
+            <div className="overflow-x-auto flex-1">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="px-6 py-3">Tenant Name</th>
+                    <th className="px-6 py-3">Contact</th>
+                    <th className="px-6 py-3">Plan</th>
+                    <th className="px-6 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {allTenants.slice(0, 5).length === 0 ? (
+                    <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No tenants found.</td></tr>
+                  ) : (
+                    allTenants.slice(0, 5).map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-slate-900">{t.name}</p>
+                          <p className="text-xs text-slate-500">{t.domain || 'No domain'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="font-medium text-slate-900">{t.contactPersonName}</p>
+                          <p className="text-xs text-slate-500">{t.contactPhone}</p>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600 font-medium">{t.planName || 'N/A'}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            t.isSuspended ? 'bg-red-50 text-red-700 border border-red-100' :
+                            t.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                            'bg-slate-50 text-slate-700 border border-slate-200'
+                          }`}>
+                            {t.isSuspended ? 'Suspended' : t.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Expiring Tenants Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <Clock size={18} className="text-amber-600" />
+                Expiring Subscriptions (Next 30 Days)
+              </h3>
+            </div>
+            <div className="overflow-x-auto flex-1">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="px-6 py-3">Tenant Name</th>
+                    <th className="px-6 py-3">Plan</th>
+                    <th className="px-6 py-3">Expiry Date</th>
+                    <th className="px-6 py-3">Days Left</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {expiringTenants.length === 0 ? (
+                    <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No expiring subscriptions.</td></tr>
+                  ) : (
+                    expiringTenants.map((t) => {
+                      const daysLeft = differenceInDays(new Date(t.subscriptionEndDate), new Date());
+                      return (
+                        <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-bold text-slate-900">{t.name}</td>
+                          <td className="px-6 py-4 text-slate-600 font-medium">{t.planName || 'N/A'}</td>
+                          <td className="px-6 py-4 font-medium text-slate-900">
+                            {format(new Date(t.subscriptionEndDate), 'MMM dd, yyyy')}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              daysLeft <= 7 ? 'bg-red-50 text-red-700 border border-red-100' :
+                              'bg-amber-50 text-amber-700 border border-amber-100'
+                            }`}>
+                              {daysLeft === 0 ? 'Today' : `${daysLeft} days`}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSuperAdmin && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mt-8">
           <h3 className="text-lg font-bold mb-4">System Health</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between">

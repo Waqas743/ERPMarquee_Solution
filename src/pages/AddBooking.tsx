@@ -368,6 +368,22 @@ const AddBooking = () => {
         return;
       }
 
+      if (!id) {
+        const selectedDate = new Date(formData.eventDate);
+        selectedDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (selectedDate < today) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Invalid Date',
+            text: 'You cannot select a past date for a new booking.'
+          });
+          return;
+        }
+      }
+
       setLoading(true);
       try {
         const res = await fetch(`/api/bookings/check-availability?hallId=${formData.hallId}&eventDate=${formData.eventDate}&slot=${formData.slot}${id ? `&excludeId=${id}` : ''}`);
@@ -795,6 +811,7 @@ const AddBooking = () => {
                 <label className="text-sm font-semibold text-slate-700">Event Date</label>
                 <input 
                   type="date"
+                  min={new Date().toISOString().split('T')[0]}
                   value={formData.eventDate}
                   onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"

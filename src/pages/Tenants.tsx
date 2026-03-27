@@ -1,6 +1,6 @@
 import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, MoreVertical, MapPin, Phone, Mail, X, Trash2, Edit2, User, CreditCard } from 'lucide-react';
+import { Plus, Search, MoreVertical, MapPin, Phone, Mail, X, Trash2, Edit2, User } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { SearchableSelect } from '../components/SearchableSelect';
 
@@ -8,7 +8,6 @@ const Tenants = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const [tenants, setTenants] = useState([]);
-  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<any>(null);
@@ -28,7 +27,6 @@ const Tenants = () => {
     address: '',
     city: '',
     country: 'Pakistan',
-    subscriptionPlanId: '',
     subscriptionStartDate: '',
     subscriptionEndDate: '',
     password: '',
@@ -53,14 +51,6 @@ const Tenants = () => {
 
   useEffect(() => {
     fetchTenants();
-    fetch('/api/plans')
-      .then(res => res.json())
-      .then(data => {
-        setPlans(data);
-        if (data.length > 0) {
-          setFormData(prev => ({ ...prev, subscriptionPlanId: data[0].id }));
-        }
-      });
   }, []);
 
   const handleOpenModal = (tenant: any = null) => {
@@ -77,10 +67,9 @@ const Tenants = () => {
         address: tenant.address || '',
         city: tenant.city || '',
         country: tenant.country || 'Pakistan',
-        subscriptionPlanId: tenant.subscriptionPlanId || '',
         subscriptionStartDate: tenant.subscriptionStartDate ? tenant.subscriptionStartDate.split('T')[0] : '',
         subscriptionEndDate: tenant.subscriptionEndDate ? tenant.subscriptionEndDate.split('T')[0] : '',
-        password: tenant.password || '',
+        password: '',
         username: tenant.username || '',
         logoUrl: tenant.logoUrl || '',
         domain: tenant.domain || '',
@@ -103,7 +92,6 @@ const Tenants = () => {
         address: '',
         city: '',
         country: 'Pakistan',
-        subscriptionPlanId: plans[0]?.id || '',
         subscriptionStartDate: new Date().toISOString().split('T')[0],
         subscriptionEndDate: '',
         password: '',
@@ -203,7 +191,6 @@ const Tenants = () => {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Person</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Info</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Password</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Plan</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Audit</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
@@ -267,11 +254,8 @@ const Tenants = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                        {tenant.password || '********'}
+                        ********
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                      {tenant.planName || 'N/A'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
@@ -413,10 +397,6 @@ const Tenants = () => {
                     <Mail size={14} className="text-slate-400" />
                     <span className="truncate">{tenant.email}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
-                    <CreditCard size={14} className="text-slate-400" />
-                    <span className="font-medium text-indigo-600">{tenant.planName || 'N/A'}</span>
-                  </div>
                 </div>
 
                 <div className="space-y-2 pt-2 border-t border-slate-50">
@@ -517,28 +497,20 @@ const Tenants = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Subscription Plan</label>
-                  <SearchableSelect
-                    options={plans.map((plan: any) => ({ value: String(plan.id), label: `${plan.name} - $${plan.priceMonthly}/mo` }))}
-                    value={String(formData.subscriptionPlanId || '')}
-                    onChange={(value) => setFormData({ ...formData, subscriptionPlanId: value })}
-                    placeholder="Select Plan"
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Subscription Start Date</label>
+                  <label className="text-sm font-semibold text-slate-700">Subscription Start Date <span className="text-red-500">*</span></label>
                   <input
                     type="date"
+                    required
                     value={formData.subscriptionStartDate}
                     onChange={e => setFormData({ ...formData, subscriptionStartDate: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Subscription End Date</label>
+                  <label className="text-sm font-semibold text-slate-700">Subscription End Date <span className="text-red-500">*</span></label>
                   <input
                     type="date"
+                    required
                     value={formData.subscriptionEndDate}
                     onChange={e => setFormData({ ...formData, subscriptionEndDate: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -547,11 +519,12 @@ const Tenants = () => {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Password</label>
                   <input
-                    type="text"
+                    type="password"
+                    required={!editingTenant}
                     value={formData.password}
                     onChange={e => setFormData({ ...formData, password: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                    placeholder="Enter tenant password"
+                    placeholder={editingTenant ? "Leave blank to keep current" : "Enter tenant password"}
                   />
                 </div>
                 <div className="space-y-2">

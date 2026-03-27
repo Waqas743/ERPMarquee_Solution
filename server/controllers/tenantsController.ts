@@ -31,6 +31,11 @@ export async function createTenant(req: Request, res: Response) {
       suspensionReason,
       isActive,
     } = req.body;
+
+    if (!subscriptionStartDate || !subscriptionEndDate) {
+      return res.status(400).json({ success: false, message: "Subscription start date and end date are required" });
+    }
+
     const logoUrl = req.file ? `/uploads/${req.file.filename}` : req.body.logoUrl || null;
     const id = await createTenantModel({
       name: name || "",
@@ -89,6 +94,11 @@ export async function updateTenant(req: Request, res: Response) {
       isActive,
       suspensionReason,
     } = req.body;
+
+    if (!subscriptionStartDate || !subscriptionEndDate) {
+      return res.status(400).json({ success: false, message: "Subscription start date and end date are required" });
+    }
+
     let logoUrl = req.body.logoUrl;
     if (req.file) {
       logoUrl = `/uploads/${req.file.filename}`;

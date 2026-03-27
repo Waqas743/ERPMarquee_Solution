@@ -34,7 +34,6 @@ export async function getTenants() {
       t.subscriptionEndDate as "subscriptionEndDate",
       t.maxBranchesAllowed as "maxBranchesAllowed",
       t.maxUsersAllowed as "maxUsersAllowed",
-      t.password as "password",
       t.isSuspended as "isSuspended",
       t.isActive as "isActive",
       t.suspensionReason as "suspensionReason",

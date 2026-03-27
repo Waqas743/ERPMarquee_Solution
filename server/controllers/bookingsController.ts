@@ -405,6 +405,13 @@ export async function createBookingFollowUp(req: Request, res: Response) {
   const { id } = req.params;
   const { userId, type, status, followUpDate, notes } = req.body;
   try {
+    const existingBooking = await getBookingById(id);
+    if (existingBooking) {
+      if (existingBooking.status === 'Rejected' || existingBooking.paymentStatus === 'Paid') {
+        return res.status(400).json({ message: "Cannot add follow-ups to a booking that is Paid or Rejected" });
+      }
+    }
+
     const followUpId = await createBookingFollowUpModel(id, {
       userId,
       type,
@@ -522,6 +529,11 @@ export async function assignBooking(req: Request, res: Response) {
 
   try {
     const existingBooking = await getBookingById(id);
+    if (existingBooking) {
+      if (existingBooking.status === 'Rejected' || existingBooking.paymentStatus === 'Paid') {
+        return res.status(400).json({ message: "Cannot assign a booking that is Paid or Rejected" });
+      }
+    }
     await assignBookingModel(id, assignedTo, authUserId);
     
     if (existingBooking) {

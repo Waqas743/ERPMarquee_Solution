@@ -941,6 +941,8 @@ By signing below, both parties agree to the terms and conditions outlined in thi
   today.setHours(0,0,0,0);
   const isEventPassed = eventDate < today;
   const isBookingCompleted = isEventPassed && booking.status === 'Approved' && booking.paymentStatus === 'Paid';
+  const isPaidOrRejected = booking.paymentStatus === 'Paid' || booking.status === 'Rejected';
+  const canPerformFollowUp = !isBookingCompleted && booking.status !== 'Completed' && !isPaidOrRejected;
 
   const canEdit = !isBookingCompleted && (booking?.status === 'Pending' || (booking?.status === 'Approved' && booking?.paymentStatus === 'Not Paid'));
   const canDelete = booking?.status === 'Pending' || booking?.status === 'Rejected';
@@ -984,7 +986,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 no-print">
-          {hasPermission('bookings.edit') && canAssign && (
+          {hasPermission('bookings.edit') && canAssign && !isPaidOrRejected && !isBookingCompleted && booking.status !== 'Completed' && (
             <button
               onClick={() => {
                 fetchStaff();
@@ -1259,7 +1261,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                 <h3 className="text-lg font-bold text-slate-900">Follow Ups</h3>
                 {hasPermission('bookings.edit') && (
                   <button 
-                    disabled={isBookingCompleted || booking.status === 'Completed'}
+                    disabled={!canPerformFollowUp}
                     onClick={() => {
                       setEditingFollowUp(null);
                       setFollowUpForm({
@@ -1271,7 +1273,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                       setIsFollowUpModalOpen(true);
                     }}
                     className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
-                      isBookingCompleted || booking.status === 'Completed' ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      !canPerformFollowUp ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'
                     }`}
                   >
                     <Plus size={16} /> Add Follow Up
@@ -1311,7 +1313,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                         {hasPermission('bookings.edit') && (
                           <div className="flex items-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0">
                             <button 
-                              disabled={isBookingCompleted || booking.status === 'Completed'}
+                              disabled={!canPerformFollowUp}
                               onClick={() => {
                                 setEditingFollowUp(followUp);
                                 setFollowUpForm({
@@ -1323,16 +1325,16 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                                 setIsFollowUpModalOpen(true);
                               }}
                               className={`p-1.5 sm:p-2 rounded-lg transition-all ${
-                                isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                !canPerformFollowUp ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
                               }`}
                             >
                               <Edit2 size={16} />
                             </button>
                             <button 
-                              disabled={isBookingCompleted || booking.status === 'Completed'}
+                              disabled={!canPerformFollowUp}
                               onClick={() => handleDeleteFollowUp(followUp.id)}
                               className={`p-1.5 sm:p-2 rounded-lg transition-all ${
-                                isBookingCompleted || booking.status === 'Completed' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                                !canPerformFollowUp ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
                               }`}
                             >
                               <Trash2 size={16} />
@@ -1365,12 +1367,12 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                               value={newComments[followUp.id] || ''}
                               onChange={(e) => setNewComments(prev => ({ ...prev, [followUp.id]: e.target.value }))}
                               onKeyPress={(e) => e.key === 'Enter' && handleAddComment(followUp.id)}
-                              disabled={isBookingCompleted || booking.status === 'Completed'}
+                              disabled={!canPerformFollowUp}
                               className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                             />
                             <button
                               onClick={() => handleAddComment(followUp.id)}
-                              disabled={isBookingCompleted || booking.status === 'Completed' || !newComments[followUp.id]?.trim()}
+                              disabled={!canPerformFollowUp || !newComments[followUp.id]?.trim()}
                               className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                               <Send size={16} />

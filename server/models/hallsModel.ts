@@ -36,7 +36,22 @@ export async function getHalls(tenantId: string, branchId?: string) {
 export async function getHallById(id: string) {
   const result = await query(
     `
-    SELECT h.*, b.name as "branchName", tu.fullName as "managerName", cb.fullName as "createdByName", mb.fullName as "modifiedByName"
+    SELECT 
+      h.id as "id",
+      h.tenantId as "tenantId",
+      h.branchId as "branchId",
+      h.hallManagerId as "hallManagerId",
+      h.hallName as "hallName",
+      h.capacity as "capacity",
+      h.isDecorationAllowedExternally as "isDecorationAllowedExternally",
+      h.createdAt as "createdAt",
+      h.modifiedAt as "modifiedAt",
+      h.createdBy as "createdBy",
+      h.modifiedBy as "modifiedBy",
+      b.name as "branchName", 
+      tu.fullName as "managerName", 
+      cb.fullName as "createdByName", 
+      mb.fullName as "modifiedByName"
     FROM Halls h 
     JOIN Branches b ON h.branchId::text = b.id::text 
     LEFT JOIN TenantUsers tu ON h.hallManagerId::text = tu.id::text

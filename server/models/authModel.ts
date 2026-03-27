@@ -35,7 +35,7 @@ export async function login(username: string, password: string) {
 
   const tenantUserResult = await query(
     `
-      SELECT tu.*, t.name as tenantName, t.isSuspended, t.isActive as tenantActive, r.name as roleName
+      SELECT tu.*, t.name as tenantName, t.logoUrl as tenantLogoUrl, t.isSuspended, t.isActive as tenantActive, r.name as roleName
       FROM TenantUsers tu
       JOIN Tenants t ON tu.tenantId::text = t.id::text
       LEFT JOIN Roles r ON tu.roleId::text = r.id::text
@@ -116,6 +116,7 @@ export async function login(username: string, password: string) {
         branchId: tenantUser.branchid,
         tenantId: tenantUser.tenantid,
         tenantName: tenantUser.tenantname,
+        tenantLogoUrl: tenantUser.tenantlogourl,
         permissions,
       },
     };

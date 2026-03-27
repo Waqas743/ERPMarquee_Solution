@@ -81,12 +81,13 @@ const MenuManagement = () => {
   };
 
   const fmtDate = (value: any) => {
+    if (!value) return 'N/A';
     try {
       const dt = new Date(value);
-      if (isNaN(dt.getTime())) return '-';
+      if (isNaN(dt.getTime())) return 'N/A';
       return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(dt);
     } catch {
-      return '-';
+      return 'N/A';
     }
   };
 
@@ -329,16 +330,16 @@ const MenuManagement = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                          <div className="flex flex-col">
+                          <div className="flex items-center gap-1">
                             <span className="font-medium text-slate-700">Created:</span>
                             <span>{item.createdByName || 'System'}</span>
-                            <span>{item.createdAt ? fmtDate(item.createdAt) : 'N/A'}</span>
+                            <span>({item.createdAt ? fmtDate(item.createdAt) : 'N/A'})</span>
                           </div>
                           {item.modifiedAt && (
-                            <div className="flex flex-col mt-1">
+                            <div className="flex items-center gap-1 mt-1">
                               <span className="font-medium text-slate-700">Modified:</span>
                               <span>{item.modifiedByName || 'System'}</span>
-                              <span>{fmtDate(item.modifiedAt)}</span>
+                              <span>({fmtDate(item.modifiedAt)})</span>
                             </div>
                           )}
                         </div>
@@ -412,16 +413,16 @@ const MenuManagement = () => {
                 
                 <div className="space-y-2 pt-4 border-t border-slate-50">
                   <div className="grid grid-cols-2 gap-4 text-[11px] text-slate-500">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-700">Created By</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-slate-700">Created:</span>
                       <span>{cat.createdByName || 'System'}</span>
-                      <span>{cat.createdAt ? fmtDate(cat.createdAt) : 'N/A'}</span>
+                      <span>({cat.createdAt ? fmtDate(cat.createdAt) : 'N/A'})</span>
                     </div>
                     {cat.modifiedAt && (
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-700">Modified By</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium text-slate-700">Modified:</span>
                         <span>{cat.modifiedByName || 'System'}</span>
-                        <span>{fmtDate(cat.modifiedAt)}</span>
+                        <span>({fmtDate(cat.modifiedAt)})</span>
                       </div>
                     )}
                   </div>

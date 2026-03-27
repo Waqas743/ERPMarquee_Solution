@@ -740,11 +740,11 @@ By signing below, both parties agree to the terms and conditions outlined in thi
 
     if (booking?.packageName) {
       doc.text(`Package: ${booking?.packageName}`, 85, headerHeight + 64);
-      if (booking?.packagePrice) {
-        doc.text(`Rate: Rs. ${Number(booking.packagePrice).toLocaleString()} / head`, 145, headerHeight + 64);
-      } else if (booking?.guestCount) {
+      if (booking?.guestCount && booking?.cateringCharges != null) {
         const perHead = Number(booking?.cateringCharges) / Number(booking?.guestCount);
         doc.text(`Rate: Rs. ${perHead.toLocaleString()} / head`, 145, headerHeight + 64);
+      } else if (booking?.packagePrice) {
+        doc.text(`Rate: Rs. ${Number(booking.packagePrice).toLocaleString()} / head`, 145, headerHeight + 64);
       }
     }
     
@@ -943,6 +943,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
   const isBookingCompleted = isEventPassed && booking.status === 'Approved' && booking.paymentStatus === 'Paid';
 
   const canEdit = !isBookingCompleted && (booking?.status === 'Pending' || (booking?.status === 'Approved' && booking?.paymentStatus === 'Not Paid'));
+  const canDelete = booking?.status === 'Pending' || booking?.status === 'Rejected';
 
   return (
     <div className="space-y-8">
@@ -1012,8 +1013,13 @@ By signing below, both parties agree to the terms and conditions outlined in thi
           {hasPermission('bookings.delete') && (
             <button 
               onClick={handleDeleteBooking}
-              className="p-2 rounded-xl transition-colors text-slate-500 hover:text-red-600 hover:bg-red-50"
-              title="Delete Booking"
+              disabled={!canDelete}
+              className={`p-2 rounded-xl transition-colors ${
+                !canDelete 
+                  ? 'text-slate-300 cursor-not-allowed' 
+                  : 'text-slate-500 hover:text-red-600 hover:bg-red-50'
+              }`}
+              title={!canDelete ? "Only Pending or Rejected bookings can be deleted" : "Delete Booking"}
             >
               <Trash2 size={18} className="sm:w-5 sm:h-5" />
             </button>
@@ -1224,7 +1230,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                   </div>
                   <div className="flex justify-between py-2 sm:py-3 border-b border-slate-100 text-sm">
                     <span className="text-slate-600 font-medium">
-                      Catering {booking.packageName ? `(${booking.packageName} @ Rs. ${(booking.packagePrice ? Number(booking.packagePrice) : (Number(booking.cateringCharges) / Number(booking.guestCount))).toLocaleString()} / head)` : ''}
+                      Catering {booking.packageName ? `(${booking.packageName} @ Rs. ${(booking.guestCount && booking.cateringCharges != null ? (Number(booking.cateringCharges) / Number(booking.guestCount)) : Number(booking.packagePrice)).toLocaleString()} / head)` : ''}
                     </span>
                     <span className="font-bold text-slate-900">Rs. {Number(booking.cateringCharges)?.toLocaleString()}</span>
                   </div>
@@ -1678,7 +1684,7 @@ By signing below, both parties agree to the terms and conditions outlined in thi
                   {booking.packageName && (
                     <p className="text-slate-600">
                       Package: {booking.packageName} 
-                      {` (Rs. ${(booking.packagePrice ? Number(booking.packagePrice) : (Number(booking.cateringCharges) / Number(booking.guestCount))).toLocaleString()} / head)`}
+                      {` (Rs. ${(booking.guestCount && booking.cateringCharges != null ? (Number(booking.cateringCharges) / Number(booking.guestCount)) : Number(booking.packagePrice)).toLocaleString()} / head)`}
                     </p>
                   )}
                 </div>

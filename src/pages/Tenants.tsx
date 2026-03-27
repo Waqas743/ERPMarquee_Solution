@@ -289,16 +289,16 @@ const Tenants = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                        <div className="flex flex-col">
+                        <div className="flex items-center gap-1">
                           <span className="font-medium text-slate-700">Created:</span>
                           <span>{tenant.createdByName || 'System'}</span>
-                          <span>{tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : 'N/A'}</span>
+                          <span>({tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : 'N/A'})</span>
                         </div>
                         {tenant.modifiedAt && (
-                          <div className="flex flex-col mt-1">
+                          <div className="flex items-center gap-1 mt-1">
                             <span className="font-medium text-slate-700">Modified:</span>
                             <span>{tenant.modifiedByName || 'System'}</span>
-                            <span>{new Date(tenant.modifiedAt).toLocaleDateString()}</span>
+                            <span>({new Date(tenant.modifiedAt).toLocaleDateString()})</span>
                           </div>
                         )}
                       </div>

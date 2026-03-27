@@ -256,6 +256,10 @@ export async function deleteBooking(req: Request, res: Response) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    if (existingBooking.status !== "Pending" && existingBooking.status !== "Rejected") {
+      return res.status(400).json({ message: "Only Pending or Rejected bookings can be deleted" });
+    }
+
     const auth = (req as any).auth;
     if (auth.roleName === "manager" && existingBooking.branchId !== auth.branchId) {
       return res.status(403).json({ message: "Access denied" });

@@ -88,3 +88,33 @@ export async function dashboardCharts(req: Request, res: Response) {
   if (!isValidUUID(tenantId)) return res.status(400).json({ message: "Invalid tenantId format" });
   res.json(await getDashboardCharts(tenantId, branchId, userId));
 }
+
+export async function dashboardAll(req: Request, res: Response) {
+  let { tenantId, branchId } = req.query as { tenantId?: string; branchId?: string };
+  const auth = (req as any).auth;
+  if (auth.roleName === "manager" || auth.roleName === "staff") {
+    branchId = auth.branchId;
+  }
+  const userId = auth.roleName === "staff" ? auth.userId : undefined;
+
+  if (!tenantId) return res.status(400).json({ message: "tenantId is required" });
+  if (!isValidUUID(tenantId)) return res.status(400).json({ message: "Invalid tenantId format" });
+
+  const [stats, calendar, upcoming, completed, invoices, charts] = await Promise.all([
+    getDashboardStats(tenantId, branchId, userId),
+    getDashboardCalendar(tenantId, branchId, undefined, undefined, userId),
+    getDashboardUpcomingEvents(tenantId, branchId, userId),
+    getDashboardCompletedEvents(tenantId, branchId, userId),
+    getDashboardInvoices(tenantId, branchId, userId),
+    getDashboardCharts(tenantId, branchId, userId)
+  ]);
+
+  res.json({
+    stats,
+    calendar,
+    upcoming,
+    completed,
+    invoices,
+    charts
+  });
+}

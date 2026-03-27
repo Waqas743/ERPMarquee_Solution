@@ -7,7 +7,24 @@
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 font-sans;
+  @apply bg-slate-50 text-slate-900 font-sans transition-colors duration-200;
+}
+
+/* Instant Dark Mode Trick */
+html.dark {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #0f172a; /* slate-900 equivalent */
+}
+
+html.dark img, 
+html.dark video, 
+html.dark iframe {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Ensure images inside specific components don't double-invert unnecessarily if already handled */
+html.dark [style*="background-image"] {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 @media print {

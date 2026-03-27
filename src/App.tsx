@@ -17,6 +17,7 @@ import Packages from './pages/Packages';
 import AddOns from './pages/AddOns';
 import Plans from './pages/Plans';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
 import Login from './pages/Login';
 import Reports from './pages/Reports';
 import { getCurrentUser } from './utils/session';
@@ -78,6 +79,7 @@ export default function App() {
                 {!isSuperAdmin && <Route path="/reports" element={<Reports />} />}
                 {isSuperAdmin && <Route path="/plans" element={<Plans />} />}
                 {isSuperAdmin && <Route path="/settings" element={<Settings />} />}
+                <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

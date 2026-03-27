@@ -70,8 +70,14 @@ const Calendar = ({ bookings }: { bookings: any[] }) => {
         ))}
         {days.map(day => {
           const dayBookings = bookings.filter(b => isSameDay(new Date(b.eventDate), day));
-          const hasMorning = dayBookings.some(b => b.slot === 'Morning');
-          const hasEvening = dayBookings.some(b => b.slot === 'Evening');
+          const morningBookings = dayBookings.filter(b => b.slot === 'Morning');
+          const eveningBookings = dayBookings.filter(b => b.slot === 'Evening');
+          
+          const hasMorning = morningBookings.length > 0;
+          const hasEvening = eveningBookings.length > 0;
+          
+          const morningIsPending = morningBookings.some(b => b.status === 'Pending');
+          const eveningIsPending = eveningBookings.some(b => b.status === 'Pending');
 
           return (
             <div 
@@ -81,8 +87,8 @@ const Calendar = ({ bookings }: { bookings: any[] }) => {
             >
               <span className="text-xs font-bold text-slate-400">{format(day, 'd')}</span>
               <div className="mt-2 space-y-1">
-                {hasMorning && <div className="h-1.5 w-full bg-yellow-400 rounded-full" title="Morning Booked" />}
-                {hasEvening && <div className="h-1.5 w-full bg-slate-400 rounded-full" title="Evening Booked" />}
+                {hasMorning && <div className={`h-1.5 w-full rounded-full ${morningIsPending ? 'bg-red-500' : 'bg-yellow-400'}`} title={`Morning Booked${morningIsPending ? ' (Pending)' : ''}`} />}
+                {hasEvening && <div className={`h-1.5 w-full rounded-full ${eveningIsPending ? 'bg-red-300' : 'bg-slate-400'}`} title={`Evening Booked${eveningIsPending ? ' (Pending)' : ''}`} />}
               </div>
               {dayBookings.length > 0 && (
                 <div className="absolute inset-0 bg-indigo-600/0 group-hover:bg-indigo-600/5 transition-colors" />
@@ -95,11 +101,19 @@ const Calendar = ({ bookings }: { bookings: any[] }) => {
       <div className="mt-4 flex items-center gap-6 text-[10px] sm:text-xs font-medium text-slate-500">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-yellow-400 rounded-full" />
-          <span>Morning Slot</span>
+          <span>Morning Slot (Confirmed)</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-slate-400 rounded-full" />
-          <span>Evening Slot</span>
+          <span>Evening Slot (Confirmed)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-red-500 rounded-full" />
+          <span>Morning (Pending)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-red-300 rounded-full" />
+          <span>Evening (Pending)</span>
         </div>
       </div>
 
@@ -112,10 +126,14 @@ const Calendar = ({ bookings }: { bookings: any[] }) => {
             </div>
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
               {selectedDateBookings.map(b => (
-                <div key={b.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div key={b.id} className={`p-4 rounded-xl border space-y-2 ${b.status === 'Pending' ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="flex items-center justify-between">
-                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${b.slot === 'Morning' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-200 text-slate-700'}`}>
-                      {b.slot}
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                      b.slot === 'Morning' 
+                        ? b.status === 'Pending' ? 'bg-red-500 text-white' : 'bg-yellow-100 text-yellow-700' 
+                        : b.status === 'Pending' ? 'bg-red-300 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {b.slot} {b.status === 'Pending' && '(Pending)'}
                     </span>
                     <span className="text-xs font-bold text-indigo-600">#{b.bookingNumber}</span>
                   </div>
@@ -190,22 +208,16 @@ const Dashboard = () => {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const [statsRes, calRes, upRes, compRes, invRes, chartRes] = await Promise.all([
-          fetch(`/api/dashboard/stats?tenantId=${tenantId}`),
-          fetch(`/api/dashboard/calendar?tenantId=${tenantId}`),
-          fetch(`/api/dashboard/upcoming-events?tenantId=${tenantId}`),
-          fetch(`/api/dashboard/completed-events?tenantId=${tenantId}`),
-          fetch(`/api/dashboard/invoices?tenantId=${tenantId}`),
-          fetch(`/api/dashboard/charts?tenantId=${tenantId}`)
-        ]);
+        const res = await fetch(`/api/dashboard/all?tenantId=${tenantId}`);
+        const data = await res.json();
 
         setDashboardData({
-          stats: await statsRes.json(),
-          calendar: await calRes.json(),
-          upcoming: await upRes.json(),
-          completed: await compRes.json(),
-          invoices: await invRes.json(),
-          charts: await chartRes.json()
+          stats: data.stats,
+          calendar: data.calendar,
+          upcoming: data.upcoming,
+          completed: data.completed,
+          invoices: data.invoices,
+          charts: data.charts
         });
       } catch (error) {
         console.error("Dashboard fetch error:", error);
@@ -261,7 +273,7 @@ const Dashboard = () => {
           <>
             <StatCard icon={CalendarIcon} label="Assigned Bookings" value={dashboardData.stats?.assignedBookings || 0} color="bg-indigo-600" />
             <StatCard icon={CalendarIcon} label="Total Bookings" value={dashboardData.stats?.totalBookings || 0} color="bg-slate-700" />
-            <StatCard icon={Clock} label="Pending Bookings" value={dashboardData.stats?.pendingBookings || 0} color="bg-amber-500" />
+            <StatCard icon={Clock} label="Pending Bookings" value={dashboardData.stats?.pendingBookings || 0} color="bg-red-500" />
             <StatCard icon={XCircle} label="Rejected Bookings" value={dashboardData.stats?.cancelledBookings || 0} color="bg-red-600" />
           </>
         ) : (
@@ -270,7 +282,7 @@ const Dashboard = () => {
             <StatCard icon={CreditCard} label="Received Payment" value={dashboardData.stats?.receivedPayment || 0} prefix="Rs. " color="bg-indigo-600" />
             <StatCard icon={CreditCard} label="Pending Payments" value={dashboardData.stats?.pendingPayment || 0} prefix="Rs. " color="bg-rose-600" />
             <StatCard icon={CalendarIcon} label="Total Bookings" value={dashboardData.stats?.totalBookings} color="bg-indigo-600" />
-            <StatCard icon={Clock} label="Pending Bookings" value={dashboardData.stats?.pendingBookings} color="bg-amber-500" />
+            <StatCard icon={Clock} label="Pending Bookings" value={dashboardData.stats?.pendingBookings} color="bg-red-500" />
             <StatCard icon={CheckCircle2} label="Confirmed Bookings" value={dashboardData.stats?.confirmedBookings} color="bg-blue-600" />
             
             <StatCard icon={CheckCircle2} label="Completed Events" value={dashboardData.stats?.completedEvents} color="bg-emerald-500" />

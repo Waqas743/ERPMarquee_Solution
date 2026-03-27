@@ -55,9 +55,8 @@ export async function getUser(req: Request, res: Response) {
 }
 
 export async function createUser(req: Request, res: Response) {
-  const {
+  let {
     tenantId,
-    branchId,
     username,
     fullName,
     email,
@@ -67,14 +66,19 @@ export async function createUser(req: Request, res: Response) {
     city,
     country,
     emergencyContactNo,
+    profileImage,
     role,
     roleId,
     isActive,
   } = req.body;
   const auth = (req as any).auth;
   try {
-    if (auth.roleName === "manager" && branchId !== auth.branchId) {
-      return res.status(403).json({ message: "Cannot create user for another branch" });
+    let branchId = null;
+    if (auth.roleName === "manager") {
+      branchId = auth.branchId; // Force manager to only create users in their own branch
+      if (!branchId) {
+        return res.status(400).json({ message: "Manager does not have a branch assigned" });
+      }
     }
     
     // Prevent director from creating admin users
@@ -112,6 +116,7 @@ export async function createUser(req: Request, res: Response) {
       city,
       country,
       emergencyContactNo,
+      profileImage,
       role,
       roleId,
       isActive: Boolean(isActive),
@@ -125,8 +130,7 @@ export async function createUser(req: Request, res: Response) {
 
 export async function updateUser(req: Request, res: Response) {
   const { id } = req.params;
-  const {
-    branchId,
+  let {
     username,
     fullName,
     email,
@@ -136,6 +140,7 @@ export async function updateUser(req: Request, res: Response) {
     city,
     country,
     emergencyContactNo,
+    profileImage,
     role,
     roleId,
     isActive,
@@ -144,8 +149,12 @@ export async function updateUser(req: Request, res: Response) {
   
   const existingUser = await getUserByIdModel(id);
   if (!existingUser) return res.status(404).json({ message: "User not found" });
-  if (auth.roleName === "manager" && existingUser.branchId !== auth.branchId) {
-    return res.status(403).json({ message: "Access denied" });
+  let branchId = existingUser.branchId;
+  if (auth.roleName === "manager") {
+    if (existingUser.branchId !== auth.branchId) {
+      return res.status(403).json({ message: "Access denied: User is not in your branch" });
+    }
+    branchId = auth.branchId; // Force branch to remain manager's branch
   }
 
   // Prevent users from changing their own role or branch (especially manager/director)
@@ -204,6 +213,7 @@ export async function updateUser(req: Request, res: Response) {
     city,
     country,
     emergencyContactNo,
+    profileImage,
     role,
     roleId,
     isActive: Boolean(isActive),

@@ -59,12 +59,13 @@ const Branches = () => {
   };
 
   const fmtDate = (value: any) => {
+    if (!value) return 'N/A';
     try {
       const dt = new Date(value);
-      if (isNaN(dt.getTime())) return '-';
+      if (isNaN(dt.getTime())) return 'N/A';
       return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(dt);
     } catch {
-      return '-';
+      return 'N/A';
     }
   };
 
@@ -274,16 +275,16 @@ const Branches = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                        <div className="flex flex-col">
+                        <div className="flex items-center gap-1">
                           <span className="font-medium text-slate-700">Created:</span>
                           <span>{branch.createdByName || 'System'}</span>
-                          <span>{branch.createdAt ? fmtDate(branch.createdAt) : 'N/A'}</span>
+                          <span>({branch.createdAt ? fmtDate(branch.createdAt) : 'N/A'})</span>
                         </div>
                         {branch.modifiedAt && (
-                          <div className="flex flex-col mt-1">
+                          <div className="flex items-center gap-1 mt-1">
                             <span className="font-medium text-slate-700">Modified:</span>
                             <span>{branch.modifiedByName || 'System'}</span>
-                            <span>{fmtDate(branch.modifiedAt)}</span>
+                            <span>({fmtDate(branch.modifiedAt)})</span>
                           </div>
                         )}
                       </div>

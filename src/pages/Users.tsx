@@ -1,3 +1,4 @@
+import Swal from 'sweetalert2';
 import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, User, Mail, Shield, X, Trash2, Edit2, Building2, Key, Phone, MapPin, Globe, PhoneCall } from 'lucide-react';
@@ -35,7 +36,6 @@ const Users = () => {
     city: '',
     country: '',
     role: '',
-    branchId: '',
     isActive: true,
     roleId: '',
   });
@@ -87,12 +87,13 @@ const Users = () => {
   }, []);
 
   const fmtDate = (value: any) => {
+    if (!value) return 'N/A';
     try {
       const dt = new Date(value);
-      if (isNaN(dt.getTime())) return '-';
+      if (isNaN(dt.getTime())) return 'N/A';
       return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(dt);
     } catch {
-      return '-';
+      return 'N/A';
     }
   };
 
@@ -117,7 +118,6 @@ const Users = () => {
           city: data.city || '',
           country: data.country || '',
           role: data.role || '',
-          branchId: data.branchId !== null && data.branchId !== undefined ? String(data.branchId) : '',
           isActive: Boolean(data.isActive),
           roleId: data.roleId !== null && data.roleId !== undefined ? String(data.roleId) : '',
         });
@@ -134,7 +134,6 @@ const Users = () => {
           city: targetUser.city || '',
           country: targetUser.country || '',
           role: targetUser.role || '',
-          branchId: targetUser.branchId !== null && targetUser.branchId !== undefined ? String(targetUser.branchId) : '',
           isActive: !!targetUser.isActive,
           roleId: targetUser.roleId !== null && targetUser.roleId !== undefined ? String(targetUser.roleId) : '',
         });
@@ -155,7 +154,6 @@ const Users = () => {
         city: '',
         country: '',
         role: '',
-        branchId: '',
         isActive: true,
         roleId: '',
       });
@@ -167,25 +165,49 @@ const Users = () => {
     e.preventDefault();
 
     if (!tenantId && user.role !== 'super_admin') {
-      alert('Error: Tenant ID is missing. Please log in again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Tenant ID is missing. Please log in again.'
+      });
       return;
     }
 
     const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
     const method = editingUser ? 'PUT' : 'POST';
 
-    const response = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...formData, tenantId }),
-    });
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, tenantId }),
+      });
 
-    if (response.ok) {
-      setIsModalOpen(false);
-      fetchUsers();
-    } else {
-      const data = await response.json();
-      alert(data.message || 'Failed to save user');
+      if (response.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Success',
+          text: `User ${editingUser ? 'updated' : 'created'} successfully`,
+          timer: 1500,
+          showConfirmButton: false
+        });
+        setIsModalOpen(false);
+        fetchUsers();
+      } else {
+        const data = await response.json();
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: data.message || 'Failed to save user'
+        });
+      }
+    } catch (error) {
+      console.error('Error saving user:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'An unexpected error occurred while saving the user'
+      });
     }
   };
 
@@ -331,16 +353,16 @@ const Users = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                        <div className="flex flex-col">
+                        <div className="flex items-center gap-1">
                           <span className="font-medium text-slate-700">Created:</span>
                           <span>{u.createdByName || 'System'}</span>
-                          <span>{u.createdAt ? fmtDate(u.createdAt) : 'N/A'}</span>
+                          <span>({u.createdAt ? fmtDate(u.createdAt) : 'N/A'})</span>
                         </div>
                         {u.modifiedAt && (
-                          <div className="flex flex-col mt-1">
+                          <div className="flex items-center gap-1 mt-1">
                             <span className="font-medium text-slate-700">Modified:</span>
                             <span>{u.modifiedByName || 'System'}</span>
-                            <span>{fmtDate(u.modifiedAt)}</span>
+                            <span>({fmtDate(u.modifiedAt)})</span>
                           </div>
                         )}
                       </div>
@@ -636,25 +658,21 @@ const Users = () => {
                   <SearchableSelect
                     options={[
                       { value: '', label: 'Select Role' },
-                      ...roles.map((r: any) => ({ value: String(r.id), label: r.name }))
+                      ...roles
+                        .filter((r: any) => {
+                          if (user.roleName === 'manager') {
+                            return r.name.toLowerCase() !== 'admin' && r.name.toLowerCase() !== 'director';
+                          }
+                          if (user.roleName === 'director') {
+                            return r.name.toLowerCase() !== 'admin';
+                          }
+                          return true;
+                        })
+                        .map((r: any) => ({ value: String(r.id), label: r.name }))
                     ]}
                     value={formData.roleId}
                     onChange={(value) => setFormData({ ...formData, roleId: value })}
                     placeholder="Select Role"
-                    className={`w-full ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Branch Assignment</label>
-                  <SearchableSelect
-                    options={[
-                      { value: '', label: 'All Branches (HQ)' },
-                      ...branches.map((b: any) => ({ value: String(b.id), label: b.name }))
-                    ]}
-                    value={formData.branchId}
-                    onChange={(value) => setFormData({ ...formData, branchId: value })}
-                    placeholder="All Branches (HQ)"
                     className={`w-full ${editingUser && String(editingUser.id) === String(user.id) && (user.roleName === 'manager' || user.roleName === 'director') ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                   />
                 </div>

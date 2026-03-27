@@ -31,12 +31,13 @@ const AddOns = () => {
   });
 
   const fmtDate = (value: any) => {
+    if (!value) return 'N/A';
     try {
       const dt = new Date(value);
-      if (isNaN(dt.getTime())) return '-';
+      if (isNaN(dt.getTime())) return 'N/A';
       return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(dt);
     } catch {
-      return '-';
+      return 'N/A';
     }
   };
 
@@ -178,16 +179,16 @@ const AddOns = () => {
 
                 <div className="space-y-2 pt-4 mt-4 border-t border-slate-50">
                   <div className="grid grid-cols-2 gap-4 text-[11px] text-slate-500">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-700">Created By</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-slate-700">Created:</span>
                       <span>{addOn.createdByName || 'System'}</span>
-                      <span>{addOn.createdAt ? fmtDate(addOn.createdAt) : 'N/A'}</span>
+                      <span>({addOn.createdAt ? fmtDate(addOn.createdAt) : 'N/A'})</span>
                     </div>
                     {addOn.modifiedAt && (
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-700">Modified By</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium text-slate-700">Modified:</span>
                         <span>{addOn.modifiedByName || 'System'}</span>
-                        <span>{fmtDate(addOn.modifiedAt)}</span>
+                        <span>({fmtDate(addOn.modifiedAt)})</span>
                       </div>
                     )}
                   </div>

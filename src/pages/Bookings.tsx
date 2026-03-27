@@ -1,7 +1,7 @@
 import { Pagination } from '../components/Pagination';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Calendar, Filter, ChevronRight, MoreVertical, CheckCircle2, Clock, XCircle, AlertCircle, Download, FileText, Utensils, Printer } from 'lucide-react';
+import { Plus, Search, Calendar, Filter, ChevronRight, MoreVertical, CheckCircle2, Clock, XCircle, AlertCircle, Download, FileText, Utensils, Printer, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { getCurrentUser, getTenantId, hasPermission } from '../utils/session';
 import { SearchableSelect } from '../components/SearchableSelect';
@@ -19,6 +19,69 @@ const Bookings = () => {
 
   const user = getCurrentUser();
   const tenantId = getTenantId();
+
+  const [drafts, setDrafts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const storedDrafts = JSON.parse(localStorage.getItem('bookingDrafts') || '[]');
+    setDrafts(storedDrafts);
+  }, []);
+
+  const syncDrafts = async () => {
+    if (!navigator.onLine) {
+      Swal.fire('Offline', 'You are currently offline. Please connect to internet to sync.', 'warning');
+      return;
+    }
+
+    if (drafts.length === 0) return;
+
+    setLoading(true);
+    let successCount = 0;
+    const failedDrafts = [];
+
+    for (const draft of drafts) {
+      try {
+        let finalCustomerId = draft.payload.customerId;
+        
+        if (draft.payload.isNewCustomer && draft.payload.customerDetails) {
+          const custRes = await fetch('/api/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenantId, ...draft.payload.customerDetails })
+          });
+          if (custRes.ok) {
+            const custData = await custRes.json();
+            finalCustomerId = custData.id;
+          }
+        }
+
+        const bookingRes = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...draft.payload, customerId: finalCustomerId })
+        });
+
+        if (bookingRes.ok) {
+          successCount++;
+        } else {
+          failedDrafts.push(draft);
+        }
+      } catch (e) {
+        failedDrafts.push(draft);
+      }
+    }
+
+    localStorage.setItem('bookingDrafts', JSON.stringify(failedDrafts));
+    setDrafts(failedDrafts);
+    setLoading(false);
+    fetchData();
+
+    Swal.fire(
+      'Sync Complete', 
+      `Successfully synced ${successCount} bookings. ${failedDrafts.length > 0 ? `${failedDrafts.length} failed.` : ''}`, 
+      successCount > 0 ? 'success' : 'warning'
+    );
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -60,12 +123,13 @@ const Bookings = () => {
   };
 
   const fmtDate = (value: any) => {
+    if (!value) return 'N/A';
     try {
       const dt = new Date(value);
-      if (isNaN(dt.getTime())) return '-';
+      if (isNaN(dt.getTime())) return 'N/A';
       return format(dt, 'MMM dd, yyyy');
     } catch {
-      return '-';
+      return 'N/A';
     }
   };
 
@@ -89,6 +153,16 @@ const Bookings = () => {
           <p className="text-slate-500">Manage all hall bookings, payments, and approvals.</p>
         </div>
         <div className="flex items-center gap-3">
+          {drafts.length > 0 && (
+            <button 
+              onClick={syncDrafts}
+              className="bg-amber-500 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 hover:bg-amber-600 transition-all shadow-sm"
+              title="Sync Offline Drafts"
+            >
+              <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+              Sync Drafts ({drafts.length})
+            </button>
+          )}
           <button 
             onClick={() => {
               window.focus();
@@ -236,16 +310,16 @@ const Bookings = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                        <div className="flex flex-col">
+                        <div className="flex items-center gap-1">
                           <span className="font-medium text-slate-700">Created:</span>
                           <span>{booking.createdByName || booking.createdBy || 'System'}</span>
-                          <span>{fmtDate(booking.createdAt)}</span>
+                          <span>({fmtDate(booking.createdAt)})</span>
                         </div>
                         {booking.modifiedAt && (
-                          <div className="flex flex-col mt-1">
+                          <div className="flex items-center gap-1 mt-1">
                             <span className="font-medium text-slate-700">Modified:</span>
                             <span>{booking.modifiedByName || booking.modifiedBy || 'System'}</span>
-                            <span>{fmtDate(booking.modifiedAt)}</span>
+                            <span>({fmtDate(booking.modifiedAt)})</span>
                           </div>
                         )}
                       </div>

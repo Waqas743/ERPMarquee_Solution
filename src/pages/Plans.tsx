@@ -30,12 +30,13 @@ const Plans = () => {
   };
 
   const fmtDate = (value: any) => {
+    if (!value) return 'N/A';
     try {
       const dt = new Date(value);
-      if (isNaN(dt.getTime())) return '-';
+      if (isNaN(dt.getTime())) return 'N/A';
       return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(dt);
     } catch {
-      return '-';
+      return 'N/A';
     }
   };
 
@@ -170,16 +171,16 @@ const Plans = () => {
 
               <div className="space-y-2 pt-2 border-t border-slate-200">
                 <div className="grid grid-cols-2 gap-4 text-[11px] text-slate-500">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-slate-700">Created By</span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium text-slate-700">Created:</span>
                     <span>{plan.createdByName || 'System'}</span>
-                    <span>{plan.createdAt ? fmtDate(plan.createdAt) : 'N/A'}</span>
+                    <span>({plan.createdAt ? fmtDate(plan.createdAt) : 'N/A'})</span>
                   </div>
                   {plan.modifiedAt && (
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-700">Modified By</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-slate-700">Modified:</span>
                       <span>{plan.modifiedByName || 'System'}</span>
-                      <span>{fmtDate(plan.modifiedAt)}</span>
+                      <span>({fmtDate(plan.modifiedAt)})</span>
                     </div>
                   )}
                 </div>

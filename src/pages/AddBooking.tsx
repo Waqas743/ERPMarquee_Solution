@@ -411,6 +411,56 @@ const AddBooking = () => {
       return;
     }
 
+    const bookingPayload = {
+      tenantId,
+      branchId: formData.branchId,
+      hallId: formData.hallId,
+      customerId: formData.customerId,
+      packageId: formData.packageId,
+      eventType: formData.eventType,
+      eventDate: formData.eventDate,
+      slot: formData.slot,
+      guestCount: formData.guestCount,
+      hallRent: formData.hallRent,
+      decorationCharges: formData.decorationCharges,
+      cateringCharges: formData.cateringCharges,
+      djCharges: formData.djCharges,
+      fireworkPrice: formData.fireworkPrice,
+      fireworkQuantity: formData.fireworkQuantity,
+      addOnsCharges: formData.selectedAddOns.reduce((sum, ao) => sum + ((Number(ao.price) || 0) * (Number(formData.guestCount) || 0)), 0),
+      discount: formData.discount,
+      tax: formData.tax,
+      grandTotal: formData.grandTotal,
+      payments: formData.paymentPlan,
+      menuItems: formData.menuItems,
+      selectedAddOns: formData.selectedAddOns,
+      isNewCustomer,
+      customerDetails: isNewCustomer ? {
+        name: formData.customerName,
+        cnic: formData.customerCnic,
+        phone: formData.customerPhone,
+        email: formData.customerEmail,
+        address: formData.customerAddress
+      } : null
+    };
+
+    if (!navigator.onLine) {
+      // Save draft to localStorage
+      const drafts = JSON.parse(localStorage.getItem('bookingDrafts') || '[]');
+      drafts.push({ id: Date.now().toString(), payload: bookingPayload, timestamp: new Date().toISOString() });
+      localStorage.setItem('bookingDrafts', JSON.stringify(drafts));
+
+      Swal.fire({
+        icon: 'info',
+        title: 'Offline Mode',
+        text: 'No internet connection. Your booking has been saved as a draft and can be synced later.',
+        confirmButtonText: 'OK'
+      }).then(() => {
+        navigate('/bookings');
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       let finalCustomerId = formData.customerId;

@@ -114,7 +114,7 @@ export async function getDashboardCalendar(tenantId: string, branchId?: string, 
     FROM Bookings b
     JOIN Halls h ON b.hallId::text = h.id::text
     JOIN Customers c ON b.customerId::text = c.id::text
-    WHERE b.tenantId = $1::uuid AND b.status IN ('Approved', 'Confirmed')
+    WHERE b.tenantId = $1::uuid AND b.status IN ('Pending', 'Approved', 'Confirmed')
   `;
   const params: any[] = [tenantId];
   if (branchId) {

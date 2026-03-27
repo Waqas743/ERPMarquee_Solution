@@ -13,6 +13,7 @@ import {
   dashboardCompletedEvents,
   dashboardInvoices,
   dashboardCharts,
+  dashboardAll,
 } from "./controllers/dashboardController";
 import { listTenants, createTenant, updateTenant, deleteTenant } from "./controllers/tenantsController";
 import { listBranches, getBranch, createBranch, updateBranch, deleteBranch } from "./controllers/branchesController";
@@ -76,6 +77,7 @@ import { packageRevenueReport, popularItemsReport } from "./controllers/reportsC
 import { login } from "./controllers/authController";
 import { getNotifications, markAsRead, markAllAsRead } from "./controllers/notificationsController";
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.resolve(__dirname, "..", "public", "uploads");
@@ -135,6 +137,7 @@ router.get("/dashboard/upcoming-events", dashboardUpcomingEvents);
 router.get("/dashboard/completed-events", dashboardCompletedEvents);
 router.get("/dashboard/invoices", dashboardInvoices);
 router.get("/dashboard/charts", dashboardCharts);
+router.get("/dashboard/all", dashboardAll);
 
 router.get("/tenants", listTenants);
 router.post("/tenants", upload.single("logo"), createTenant);

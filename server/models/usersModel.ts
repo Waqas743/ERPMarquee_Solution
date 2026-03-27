@@ -34,6 +34,7 @@ export async function listUsers(data: {
       tu.city as "city",
       tu.country as "country",
       tu.emergencyContactNo as "emergencyContactNo",
+      tu.profileImage as "profileImage",
       tu.role as "role",
       tu.roleId as "roleId",
       tu.isActive as "isActive",
@@ -103,6 +104,7 @@ export async function getUserById(id: string) {
         tu.city as "city",
         tu.country as "country",
         tu.emergencyContactNo as "emergencyContactNo",
+        tu.profileImage as "profileImage",
         tu.role as "role",
         tu.roleId as "roleId",
         tu.isActive as "isActive",
@@ -138,20 +140,30 @@ export async function createUser(data: {
   city?: string;
   country?: string;
   emergencyContactNo?: string;
+  profileImage?: string;
   role?: string;
   roleId?: string | null;
   isActive: boolean;
   createdBy?: string;
 }) {
+  const emailCheck = await query(
+    `SELECT id FROM TenantUsers WHERE tenantId = $1::uuid AND LOWER(email) = LOWER($2) AND COALESCE(isDeleted, FALSE) = FALSE`,
+    [data.tenantId, data.email]
+  );
+
+  if (emailCheck.rowCount !== null && emailCheck.rowCount > 0) {
+    throw new Error("A user with this email already exists for this tenant");
+  }
+
   const hashedPassword = await hashPassword(data.password);
   const result = await query(
     `
       INSERT INTO TenantUsers (
         tenantId, branchId, username, fullName, email, password,
         address, contactNo, city, country, emergencyContactNo,
-        role, roleId, isActive, createdBy
+        profileImage, role, roleId, isActive, createdBy
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING id
     `,
     [
@@ -166,6 +178,7 @@ export async function createUser(data: {
       data.city,
       data.country,
       data.emergencyContactNo,
+      data.profileImage || null,
       data.role || "staff",
       data.roleId || null,
       data.isActive,
@@ -186,44 +199,91 @@ export async function updateUser(id: string, data: {
   city?: string;
   country?: string;
   emergencyContactNo?: string;
+  profileImage?: string;
   role?: string;
   roleId?: string | null;
   isActive: boolean;
   modifiedBy?: string;
 }) {
+  const existingUser = await query("SELECT tenantId FROM TenantUsers WHERE id = $1", [id]);
+  const tenantId = existingUser.rows[0]?.tenantid;
+
+  if (tenantId) {
+    const emailCheck = await query(
+      `SELECT id FROM TenantUsers WHERE tenantId = $1::uuid AND LOWER(email) = LOWER($2) AND id != $3::uuid AND COALESCE(isDeleted, FALSE) = FALSE`,
+      [tenantId, data.email, id]
+    );
+
+    if (emailCheck.rowCount !== null && emailCheck.rowCount > 0) {
+      throw new Error("A user with this email already exists for this tenant");
+    }
+  }
+
   let nextPassword = data.password;
   if (!nextPassword) {
     const existing = await query<{ password: string }>("SELECT password FROM TenantUsers WHERE id = $1", [id]);
     nextPassword = existing.rows[0]?.password || "";
   }
   const hashedPassword = await hashPassword(nextPassword);
-  await query(
-    `
-      UPDATE TenantUsers SET
-        branchId = $1, username = $2, fullName = $3, email = $4,
-        password = $5, address = $6, contactNo = $7, city = $8,
-        country = $9, emergencyContactNo = $10, role = $11, roleId = $12, isActive = $13,
-        modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $14
-      WHERE id = $15
-    `,
-    [
-      data.branchId || null,
-      data.username,
-      data.fullName,
-      data.email,
-      hashedPassword,
-      data.address,
-      data.contactNo,
-      data.city,
-      data.country,
-      data.emergencyContactNo,
-      data.role,
-      data.roleId || null,
-      data.isActive,
-      data.modifiedBy || null,
-      id,
-    ]
-  );
+  
+  if (data.profileImage !== undefined) {
+    await query(
+      `
+        UPDATE TenantUsers SET
+          branchId = $1, username = $2, fullName = $3, email = $4,
+          password = $5, address = $6, contactNo = $7, city = $8,
+          country = $9, emergencyContactNo = $10, profileImage = $11, role = $12, roleId = $13, isActive = $14,
+          modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $15
+        WHERE id = $16
+      `,
+      [
+        data.branchId || null,
+        data.username,
+        data.fullName,
+        data.email,
+        hashedPassword,
+        data.address,
+        data.contactNo,
+        data.city,
+        data.country,
+        data.emergencyContactNo,
+        data.profileImage,
+        data.role,
+        data.roleId || null,
+        data.isActive,
+        data.modifiedBy || null,
+        id,
+      ]
+    );
+  } else {
+    await query(
+      `
+        UPDATE TenantUsers SET
+          branchId = $1, username = $2, fullName = $3, email = $4,
+          password = $5, address = $6, contactNo = $7, city = $8,
+          country = $9, emergencyContactNo = $10, role = $11, roleId = $12, isActive = $13,
+          modifiedAt = CURRENT_TIMESTAMP, modifiedBy = $14
+        WHERE id = $15
+      `,
+      [
+        data.branchId || null,
+        data.username,
+        data.fullName,
+        data.email,
+        hashedPassword,
+        data.address,
+        data.contactNo,
+        data.city,
+        data.country,
+        data.emergencyContactNo,
+        data.role,
+        data.roleId || null,
+        data.isActive,
+        data.modifiedBy || null,
+        id,
+      ]
+    );
+  }
 }
 
 export async function deleteUser(id: string, deletedBy?: string) {

@@ -147,6 +147,7 @@ export async function initDatabase() {
       city TEXT,
       country TEXT,
       emergencyContactNo TEXT,
+      profileImage TEXT,
       role TEXT DEFAULT 'admin',
       roleId UUID,
       isActive BOOLEAN DEFAULT TRUE,
@@ -615,6 +616,7 @@ export async function initDatabase() {
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS isDeleted BOOLEAN DEFAULT FALSE");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS deletedAt TIMESTAMP");
   await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS deletedBy UUID");
+  await query("ALTER TABLE TenantUsers ADD COLUMN IF NOT EXISTS profileImage TEXT");
 
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
   await query("ALTER TABLE SubscriptionPlans ADD COLUMN IF NOT EXISTS createdBy UUID");
